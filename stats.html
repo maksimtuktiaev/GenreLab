@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Статистика и рейтинг жанров — GenreLab</title>
+    <link rel="stylesheet" href="assets/style.css" />
+  </head>
+  <body data-page="stats">
+    <header id="site-header"></header>
+
+    <main class="page">
+      <section class="container section">
+        <div class="section-head">
+          <h2>📊 Статистика проекта</h2>
+          <p>
+            Данные собираются автоматически из оценок всех участников команды
+            <br>(обновляются каждые 30 секунд из базы данных).
+          </p>
+        </div>
+        <div id="statsRoot"></div>
+      </section>
+    </main>
+
+    <footer id="site-footer"></footer>
+
+    <script src="assets/api.js"></script>
+    <script src="assets/app.js"></script>
+  </body>
+</html>

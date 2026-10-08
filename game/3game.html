@@ -1,0 +1,1523 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Orbit Recovery</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: #03050a;
+    font-family: 'Segoe UI', Roboto, Arial, sans-serif;
+    color: #dff2ff;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+  }
+  #wrap {
+    position: relative;
+    width: min(96vw, 96vh * 1.5);
+    max-width: 1100px;
+    aspect-ratio: 960 / 640;
+    box-shadow: 0 0 80px rgba(60,180,255,0.14), 0 0 0 2px #14212f;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  canvas { display: block; width: 100%; height: 100%; background: #03050a; }
+
+  #hud {
+    position: absolute; top: 0; left: 0; right: 0;
+    display: flex; gap: 8px; align-items: center;
+    padding: 9px 12px;
+    pointer-events: none;
+    font-size: clamp(10px, 1.5vh, 15px);
+    font-weight: 700;
+    text-shadow: 0 2px 5px #000;
+  }
+  .stat {
+    background: rgba(8,16,26,0.8);
+    border: 1px solid rgba(110,230,255,0.16);
+    border-radius: 8px;
+    padding: 5px 12px;
+    display: flex; align-items: center; gap: 7px;
+    backdrop-filter: blur(5px);
+    white-space: nowrap;
+  }
+  .stat .ico { font-size: 1.1em; }
+  .spacer { flex: 1; }
+  #mag-stat { transition: all .15s; }
+  #mag-stat.on {
+    border-color: rgba(110,240,255,0.7);
+    box-shadow: 0 0 16px rgba(110,240,255,0.45);
+    color: #9df3ff;
+  }
+  #hull-bar {
+    width: 70px; height: 8px;
+    background: rgba(255,255,255,0.14);
+    border-radius: 4px;
+    overflow: hidden;
+    display: inline-block;
+  }
+  #hull-fill {
+    height: 100%; width: 100%;
+    background: linear-gradient(90deg, #35ff9e, #7fe7ff);
+    border-radius: 4px;
+    transition: width .12s, background .2s;
+  }
+
+  #overlay {
+    position: absolute; inset: 0;
+    background: radial-gradient(circle at 50% 40%, rgba(10,26,44,0.94), rgba(2,4,9,0.98));
+    display: flex; align-items: center; justify-content: center;
+    padding: 22px;
+    transition: opacity .25s;
+    z-index: 5;
+  }
+  #overlay.hidden { opacity: 0; pointer-events: none; }
+  .panel { text-align: center; max-width: 680px; animation: pop .3s ease-out; }
+  @keyframes pop { from { transform: scale(.95); opacity: 0 } to { transform: scale(1); opacity: 1 } }
+
+  .panel h1 {
+    font-size: clamp(21px, 3.8vh, 42px);
+    margin: 0 0 6px;
+    background: linear-gradient(180deg, #cdf6ff, #2fa8dd);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    letter-spacing: 1.5px;
+    text-shadow: 0 0 44px rgba(80,210,255,0.3);
+  }
+  .panel .sub {
+    color: #93aec4; font-size: clamp(12px, 1.9vh, 17px);
+    margin: 0 0 18px; line-height: 1.5;
+  }
+  .controls {
+    display: flex; flex-direction: column; gap: 9px;
+    background: rgba(110,230,255,0.055);
+    border: 1px solid rgba(110,230,255,0.14);
+    border-radius: 10px;
+    padding: 15px 20px;
+    margin-bottom: 16px;
+    font-size: clamp(11px, 1.7vh, 15px);
+    color: #c2d8ea;
+    text-align: left;
+  }
+  .controls b { color: #7fe7ff; }
+  .hint {
+    color: #7287a0; font-size: clamp(10px, 1.5vh, 13px);
+    margin: 0 0 20px; line-height: 1.55;
+  }
+  button {
+    font-family: inherit;
+    font-size: clamp(13px, 2vh, 18px);
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    padding: 14px 44px;
+    border: none; border-radius: 10px;
+    cursor: pointer;
+    color: #03141c;
+    background: linear-gradient(180deg, #a5f2ff, #2fa8dd);
+    box-shadow: 0 6px 0 #145a78, 0 10px 26px rgba(0,0,0,.6);
+    transition: transform .08s, box-shadow .08s;
+  }
+  button:hover { transform: translateY(-2px); box-shadow: 0 8px 0 #145a78, 0 12px 30px rgba(0,0,0,.65); }
+  button:active { transform: translateY(4px); box-shadow: 0 2px 0 #145a78; }
+
+  .score-big {
+    font-size: clamp(22px, 3.4vh, 38px);
+    color: #7fe7ff; font-weight: 900;
+    margin: 6px 0 16px;
+  }
+  .stat-row { display: flex; gap: 26px; justify-content: center; margin-bottom: 20px; flex-wrap: wrap; }
+  .stat-row div { color: #93aec4; font-size: clamp(11px, 1.7vh, 15px); }
+  .stat-row span { display: block; color: #fff; font-size: 1.55em; font-weight: 800; margin-top: 3px; }
+
+  /* Кнопка «На главную» */
+.back-to-main {
+  position: fixed;
+  top: 14px;
+  left: 14px;
+  z-index: 9999;
+  padding: 9px 16px;
+  font-family: 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .3px;
+  color: #e8e8f0;
+  background: rgba(12, 12, 20, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  text-decoration: none;
+  backdrop-filter: blur(6px);
+  transition: background .15s, border-color .15s, transform .15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.back-to-main:hover {
+  background: rgba(30, 30, 45, 0.95);
+  border-color: rgba(255, 215, 94, 0.55);
+  color: #ffd75e;
+  transform: translateY(-1px);
+}
+.back-to-main:active {
+  transform: translateY(1px);
+}
+
+</style>
+</head>
+<body>
+
+<a href="../index.html" id="backToMain" class="back-to-main">← На главную</a>
+
+<div id="wrap">
+  <canvas id="game"></canvas>
+
+  <div id="hud">
+    <div class="stat"><span class="ico">💰</span><span id="ui-score">0</span></div>
+    <div class="stat"><span class="ico">📦</span><span id="ui-cargo">0.0 т</span></div>
+    <div class="stat"><span class="ico">🛡</span><span id="hull-bar"><span id="hull-fill"></span></span></div>
+    <div class="spacer"></div>
+    <div class="stat" id="mag-stat"><span class="ico">🧲</span><span id="ui-mag">ВЫКЛ</span></div>
+    <div class="stat"><span class="ico">🚀</span><span id="ui-deliv">0</span></div>
+  </div>
+
+  <div id="overlay"><div class="panel" id="panel"></div></div>
+</div>
+
+<script>
+"use strict";
+
+/* =========================================================
+   БАЗОВОЕ
+   ========================================================= */
+const W = 960, H = 640;
+const cvs = document.getElementById('game');
+const ctx = cvs.getContext('2d');
+cvs.width = W; cvs.height = H;
+
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const rnd   = (a, b) => a + Math.random() * (b - a);
+const TAU   = Math.PI * 2;
+
+/* =========================================================
+   КОНСТАНТЫ ФИЗИКИ
+   ========================================================= */
+const SHIP_MASS    = 10;
+const THRUST       = 4300;
+const ROT_SPEED    = 3.35;
+const DRAG         = 1.15;
+const MAGNET_RANGE = 235;
+const MAX_CARGO    = 4;
+const SPRING_K     = 30;
+const SPRING_C     = 7;
+const MAX_TETHER   = 3.6;
+
+const STATION = { x: W / 2, y: H / 2, r: 80 };
+
+/* =========================================================
+   ТИПЫ МУСОРА
+   ========================================================= */
+const DEBRIS_TYPES = [
+  { id:'bolt',  r: 9,  mass: 1.0, value: 8,  color:'#8fa3b8', dark:'#4d5f70', weight: 34 },
+  { id:'panel', r: 14, mass: 2.5, value: 20, color:'#4fa8d8', dark:'#22546f', weight: 30 },
+  { id:'hull',  r: 18, mass: 4.2, value: 36, color:'#c47a3a', dark:'#6d3f18', weight: 22 },
+  { id:'core',  r: 15, mass: 3.2, value: 72, color:'#ffd75e', dark:'#8a6210', weight: 14 },
+];
+const TOTAL_WEIGHT = DEBRIS_TYPES.reduce((s, t) => s + t.weight, 0);
+
+function pickDebrisType() {
+  let r = Math.random() * TOTAL_WEIGHT;
+  for (const t of DEBRIS_TYPES) {
+    r -= t.weight;
+    if (r <= 0) return t;
+  }
+  return DEBRIS_TYPES[0];
+}
+
+/* =========================================================
+   СОСТОЯНИЕ
+   ========================================================= */
+const keys = {};
+let state = 'menu';   // menu | playing | paused | gameover
+let time = 0;
+let score = 0;
+let delivered = 0;
+let bestScore = 0;
+let shake = 0;
+let flash = 0;
+let magnetOn = false;
+
+let ship, debrisList, asteroids, particles, texts, stars, nebulas;
+let debrisTimer, astTimer;
+
+/* =========================================================
+   УТИЛИТЫ
+   ========================================================= */
+function edgePoint(pad) {
+  pad = pad || 46;
+  const side = Math.floor(Math.random() * 4);
+  if (side === 0) return { x: rnd(pad, W - pad), y: pad };
+  if (side === 1) return { x: W - pad, y: rnd(pad, H - pad) };
+  if (side === 2) return { x: rnd(pad, W - pad), y: H - pad };
+  return { x: pad, y: rnd(pad, H - pad) };
+}
+
+function makeAsteroidVerts(r) {
+  const n = 8 + Math.floor(Math.random() * 4);
+  const v = [];
+  for (let i = 0; i < n; i++) {
+    v.push({ a: (i / n) * TAU, r: r * rnd(0.74, 1.14) });
+  }
+  return v;
+}
+
+function burst(x, y, color, n, speed) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * TAU;
+    const s = speed * rnd(0.25, 1.0);
+    particles.push({
+      x, y,
+      vx: Math.cos(a) * s,
+      vy: Math.sin(a) * s,
+      life: rnd(0.3, 0.85),
+      maxLife: 0.85,
+      color,
+      size: rnd(1.4, 3.4),
+    });
+  }
+}
+
+const rings = [];
+function spawnRing(x, y, color, maxR) {
+  rings.push({ x, y, r: 4, maxR: maxR || 60, life: 0.42, maxLife: 0.42, color });
+}
+
+function addText(x, y, text, color) {
+  texts.push({ x, y, text, color, life: 1.0, vy: -34 });
+}
+
+/* =========================================================
+   СПАВН
+   ========================================================= */
+function spawnDebris() {
+  const t = pickDebrisType();
+  const p = edgePoint(52);
+  const a = Math.atan2(STATION.y - p.y, STATION.x - p.x) + rnd(-0.9, 0.9);
+  const sp = rnd(8, 26);
+  debrisList.push({
+    x: p.x, y: p.y,
+    vx: Math.cos(a) * sp,
+    vy: Math.sin(a) * sp,
+    radius: t.r,
+    mass: t.mass,
+    value: t.value,
+    type: t.id,
+    color: t.color,
+    dark: t.dark,
+    rot: Math.random() * TAU,
+    rotSpd: rnd(-1.2, 1.2),
+    attached: false,
+    wob: Math.random() * TAU,
+  });
+}
+
+function spawnAsteroid() {
+  const p = edgePoint(40);
+  const r = rnd(14, 38);
+  const a = Math.atan2(STATION.y - p.y, STATION.x - p.x) + rnd(-1.1, 1.1);
+  const sp = rnd(22, 52) + score * 0.012;
+  asteroids.push({
+    x: p.x, y: p.y,
+    vx: Math.cos(a) * sp,
+    vy: Math.sin(a) * sp,
+    radius: r,
+    mass: r * 0.75,
+    rot: Math.random() * TAU,
+    rotSpd: rnd(-0.9, 0.9),
+    verts: makeAsteroidVerts(r),
+  });
+}
+
+/* =========================================================
+   СБРОС ИГРЫ
+   ========================================================= */
+function resetGame() {
+  ship = {
+    x: W / 2,
+    y: H / 2 + 210,
+    vx: 0, vy: 0,
+    angle: -Math.PI / 2,
+    radius: 16,
+    hull: 100,
+    maxHull: 100,
+    inv: 0,
+    thrusting: 0,
+  };
+  debrisList = [];
+  asteroids = [];
+  particles = [];
+  texts = [];
+  rings.length = 0;
+
+  score = 0;
+  delivered = 0;
+  magnetOn = false;
+  shake = 0;
+  flash = 0;
+  time = 0;
+
+  debrisTimer = 0.4;
+  astTimer = 1.6;
+
+  for (let i = 0; i < 6; i++) spawnDebris();
+  for (let i = 0; i < 4; i++) spawnAsteroid();
+}
+
+/* =========================================================
+   МАГНИТ
+   ========================================================= */
+function setMagnet(v) {
+  magnetOn = v;
+  if (!magnetOn) {
+    for (const d of debrisList) d.attached = false;
+  } else {
+    spawnRing(ship.x, ship.y, '#6ef0ff', 90);
+  }
+}
+
+function detachAll() {
+  for (const d of debrisList) d.attached = false;
+}
+
+function cargoMass() {
+  let m = 0;
+  for (const d of debrisList) if (d.attached) m += d.mass;
+  return m;
+}
+
+function cargoCount() {
+  let n = 0;
+  for (const d of debrisList) if (d.attached) n++;
+  return n;
+}
+
+/* =========================================================
+   ОБНОВЛЕНИЕ
+   ========================================================= */
+function update(dt) {
+  time += dt;
+
+  if (shake > 0) shake = Math.max(0, shake - dt * 2.2);
+  if (flash > 0) flash = Math.max(0, flash - dt * 2.4);
+
+  /* эффекты живут всегда */
+  updateEffects(dt);
+
+  if (state !== 'playing') return;
+
+  if (ship.inv > 0) ship.inv -= dt;
+
+  /* ---------------- ВВОД ---------------- */
+  let rot = 0;
+  if (keys['KeyA'] || keys['ArrowLeft'])  rot -= 1;
+  if (keys['KeyD'] || keys['ArrowRight']) rot += 1;
+
+  const cMass = cargoMass();
+  const totalMass = SHIP_MASS + cMass;
+  const massFactor = SHIP_MASS / totalMass;   // 1 — пустой, меньше — тяжелее
+
+  /* поворот (тяжёлый груз ухудшает управляемость) */
+  ship.angle += rot * ROT_SPEED * (0.32 + 0.68 * massFactor) * dt;
+
+  /* тяга */
+  const cosA = Math.cos(ship.angle), sinA = Math.sin(ship.angle);
+  const acc = THRUST / totalMass;
+  let ax = 0, ay = 0;
+
+  if (keys['KeyW'] || keys['ArrowUp']) {
+    ax += cosA * acc;
+    ay += sinA * acc;
+    ship.thrusting = 1;
+  } else if (keys['KeyS'] || keys['ArrowDown']) {
+    ax -= cosA * acc * 0.72;
+    ay -= sinA * acc * 0.72;
+    ship.thrusting = -1;
+  } else {
+    ship.thrusting = 0;
+  }
+
+  ship.vx += ax * dt;
+  ship.vy += ay * dt;
+
+  const dragF = Math.exp(-DRAG * dt);
+  ship.vx *= dragF;
+  ship.vy *= dragF;
+
+  /* ограничение скорости */
+  const spd = Math.hypot(ship.vx, ship.vy);
+  const MAXS = 620;
+  if (spd > MAXS) {
+    ship.vx = ship.vx / spd * MAXS;
+    ship.vy = ship.vy / spd * MAXS;
+  }
+
+  ship.x += ship.vx * dt;
+  ship.y += ship.vy * dt;
+
+  /* стены арены */
+  const pad = ship.radius + 4;
+  if (ship.x < pad)      { ship.x = pad;     ship.vx = Math.abs(ship.vx) * 0.45; }
+  if (ship.x > W - pad)  { ship.x = W - pad; ship.vx = -Math.abs(ship.vx) * 0.45; }
+  if (ship.y < pad)      { ship.y = pad;     ship.vy = Math.abs(ship.vy) * 0.45; }
+  if (ship.y > H - pad)  { ship.y = H - pad; ship.vy = -Math.abs(ship.vy) * 0.45; }
+
+  /* ---------------- АВТОЗАХВАТ МАГНИТОМ ---------------- */
+  if (magnetOn) {
+    let cnt = cargoCount();
+    while (cnt < MAX_CARGO) {
+      let best = null, bestD = MAGNET_RANGE;
+      for (const d of debrisList) {
+        if (d.attached) continue;
+        const dd = Math.hypot(d.x - ship.x, d.y - ship.y);
+        if (dd < bestD) { bestD = dd; best = d; }
+      }
+      if (!best) break;
+      best.attached = true;
+      cnt++;
+      spawnRing(best.x, best.y, '#6ef0ff', 46);
+      burst(best.x, best.y, '#6ef0ff', 6, 90);
+    }
+  }
+
+  /* ---------------- МУСОР ---------------- */
+  const cargoNow = cargoMass();
+
+  for (let i = debrisList.length - 1; i >= 0; i--) {
+    const d = debrisList[i];
+
+    /* пружина-трос */
+    if (d.attached && magnetOn) {
+      const dx = d.x - ship.x, dy = d.y - ship.y;
+      let dist = Math.hypot(dx, dy);
+      if (dist < 0.001) dist = 0.001;
+
+      const ux = dx / dist, uy = dy / dist;
+      const rest = ship.radius + d.radius + 26;
+
+      /* обрыв троса */
+      if (dist > rest * MAX_TETHER) {
+        d.attached = false;
+        burst(d.x, d.y, '#ff9f5a', 8, 110);
+        addText(d.x, d.y - 14, 'ОБРЫВ!', '#ff9f5a');
+        continue;
+      }
+
+      const stretch = dist - rest;
+      if (stretch > 0) {
+        const rel = (d.vx - ship.vx) * ux + (d.vy - ship.vy) * uy;
+        let F = SPRING_K * stretch + SPRING_C * rel;
+        if (F < 0) F = 0;
+        if (F > 26000) F = 26000;
+
+        d.vx -= (F / d.mass) * ux * dt;
+        d.vy -= (F / d.mass) * uy * dt;
+
+        ship.vx += (F / (SHIP_MASS + cargoNow)) * ux * dt;
+        ship.vy += (F / (SHIP_MASS + cargoNow)) * uy * dt;
+      }
+    }
+
+    /* трение космоса */
+    const df = Math.exp(-0.32 * dt);
+    d.vx *= df;
+    d.vy *= df;
+
+    d.x += d.vx * dt;
+    d.y += d.vy * dt;
+    d.rot += d.rotSpd * dt;
+    d.wob += dt * 2.4;
+
+    /* стены */
+    const p = d.radius + 2;
+    if (d.x < p)     { d.x = p;     d.vx = Math.abs(d.vx) * 0.6; }
+    if (d.x > W - p) { d.x = W - p; d.vx = -Math.abs(d.vx) * 0.6; }
+    if (d.y < p)     { d.y = p;     d.vy = Math.abs(d.vy) * 0.6; }
+    if (d.y > H - p) { d.y = H - p; d.vy = -Math.abs(d.vy) * 0.6; }
+
+    /* сдача на станции */
+    const dStat = Math.hypot(d.x - STATION.x, d.y - STATION.y);
+    if (dStat < STATION.r * 0.74) {
+      score += d.value;
+      delivered++;
+      burst(d.x, d.y, '#7fe7ff', 16, 190);
+      burst(d.x, d.y, '#35ff9e', 10, 140);
+      spawnRing(d.x, d.y, '#35ff9e', 70);
+      addText(d.x, d.y - 18, '+' + d.value, '#7fe7ff');
+      flash = Math.max(flash, 0.25);
+      debrisList.splice(i, 1);
+      continue;
+    }
+  }
+
+  /* ---------------- АСТЕРОИДЫ ---------------- */
+  for (let i = asteroids.length - 1; i >= 0; i--) {
+    const a = asteroids[i];
+    a.x += a.vx * dt;
+    a.y += a.vy * dt;
+    a.rot += a.rotSpd * dt;
+
+    const p = a.radius + 2;
+    if (a.x < p)     { a.x = p;     a.vx = Math.abs(a.vx); }
+    if (a.x > W - p) { a.x = W - p; a.vx = -Math.abs(a.vx); }
+    if (a.y < p)     { a.y = p;     a.vy = Math.abs(a.vy); }
+    if (a.y > H - p) { a.y = H - p; a.vy = -Math.abs(a.vy); }
+  }
+
+  /* ---------------- СТОЛКНОВЕНИЯ ---------------- */
+  /* мусор ↔ астероид */
+  for (const d of debrisList) {
+    for (const a of asteroids) {
+      const dx = d.x - a.x, dy = d.y - a.y;
+      const dist = Math.hypot(dx, dy);
+      const minD = d.radius + a.radius;
+      if (dist < minD && dist > 0.001) {
+        const nx = dx / dist, ny = dy / dist;
+        const overlap = minD - dist;
+        d.x += nx * overlap * 0.8;
+        d.y += ny * overlap * 0.8;
+        a.x -= nx * overlap * 0.2;
+        a.y -= ny * overlap * 0.2;
+
+        const rvx = d.vx - a.vx, rvy = d.vy - a.vy;
+        const vn = rvx * nx + rvy * ny;
+        if (vn < 0) {
+          const j = -(1.45) * vn / (1 / d.mass + 1 / a.mass);
+          d.vx += (j / d.mass) * nx;
+          d.vy += (j / d.mass) * ny;
+          a.vx -= (j / a.mass) * nx;
+          a.vy -= (j / a.mass) * ny;
+          if (Math.abs(vn) > 70) {
+            burst(d.x, d.y, '#c9d8e8', 5, 80);
+          }
+        }
+      }
+    }
+  }
+
+  /* корабль ↔ мусор (мягкий толчок) */
+  for (const d of debrisList) {
+    if (d.attached) continue;
+    const dx = ship.x - d.x, dy = ship.y - d.y;
+    const dist = Math.hypot(dx, dy);
+    const minD = ship.radius + d.radius;
+    if (dist < minD && dist > 0.001) {
+      const nx = dx / dist, ny = dy / dist;
+      const overlap = minD - dist;
+      ship.x += nx * overlap * 0.5;
+      ship.y += ny * overlap * 0.5;
+      d.x -= nx * overlap * 0.5;
+      d.y -= ny * overlap * 0.5;
+
+      const rvx = ship.vx - d.vx, rvy = ship.vy - d.vy;
+      const vn = rvx * nx + rvy * ny;
+      if (vn < 0) {
+        const tm = SHIP_MASS + cargoMass();
+        const j = -(1.15) * vn / (1 / tm + 1 / d.mass);
+        ship.vx += (j / tm) * nx;
+        ship.vy += (j / tm) * ny;
+        d.vx -= (j / d.mass) * nx;
+        d.vy -= (j / d.mass) * ny;
+      }
+    }
+  }
+
+  /* корабль ↔ астероид (урон) */
+  for (const a of asteroids) {
+    const dx = ship.x - a.x, dy = ship.y - a.y;
+    const dist = Math.hypot(dx, dy);
+    const minD = ship.radius + a.radius;
+    if (dist < minD && dist > 0.001) {
+      const nx = dx / dist, ny = dy / dist;
+      const overlap = minD - dist;
+      ship.x += nx * overlap;
+      ship.y += ny * overlap;
+
+      const rvx = ship.vx - a.vx, rvy = ship.vy - a.vy;
+      const vn = rvx * nx + rvy * ny;
+      if (vn < 0) {
+        ship.vx -= 1.7 * vn * nx;
+        ship.vy -= 1.7 * vn * ny;
+      }
+      a.vx -= nx * 22;
+      a.vy -= ny * 22;
+
+      if (ship.inv <= 0) {
+        const dmg = Math.round(9 + a.radius * 0.55);
+        ship.hull -= dmg;
+        ship.inv = 1.05;
+        shake = 1.0;
+        flash = 0.4;
+        burst(ship.x, ship.y, '#ff7a4a', 22, 220);
+        burst(ship.x, ship.y, '#ffd75e', 10, 150);
+        spawnRing(ship.x, ship.y, '#ff7a4a', 80);
+        addText(ship.x, ship.y - 24, '-' + dmg, '#ff7a4a');
+
+        if (cargoCount() > 0) {
+          detachAll();
+          addText(ship.x, ship.y - 46, 'ГРУЗ ПОТЕРЯН', '#ffb347');
+        }
+
+        if (ship.hull <= 0) {
+          ship.hull = 0;
+          gameOver();
+          return;
+        }
+      }
+    }
+  }
+
+  /* ---------------- СПАВН ---------------- */
+  debrisTimer -= dt;
+  if (debrisTimer <= 0 && debrisList.length < 10) {
+    spawnDebris();
+    debrisTimer = rnd(0.9, 1.7);
+  }
+
+  astTimer -= dt;
+  const maxAst = 14;
+  if (astTimer <= 0 && asteroids.length < maxAst) {
+    spawnAsteroid();
+    const base = Math.max(1.05, 2.9 - score / 700);
+    astTimer = rnd(base * 0.7, base * 1.4);
+  }
+}
+
+/* =========================================================
+   ЭФФЕКТЫ
+   ========================================================= */
+function updateEffects(dt) {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.life -= dt;
+    if (p.life <= 0) { particles.splice(i, 1); continue; }
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.vx *= 0.94;
+    p.vy *= 0.94;
+  }
+  for (let i = rings.length - 1; i >= 0; i--) {
+    const r = rings[i];
+    r.life -= dt;
+    r.r += (r.maxR - r.r) * dt * 9;
+    if (r.life <= 0) rings.splice(i, 1);
+  }
+  for (let i = texts.length - 1; i >= 0; i--) {
+    const t = texts[i];
+    t.life -= dt * 1.05;
+    t.y += t.vy * dt;
+    t.vy *= 0.93;
+    if (t.life <= 0) texts.splice(i, 1);
+  }
+}
+
+/* =========================================================
+   ИГРА ОКОНЧЕНА
+   ========================================================= */
+function gameOver() {
+  state = 'gameover';
+  bestScore = Math.max(bestScore, score);
+  shake = 1.2;
+  flash = 0.7;
+  burst(ship.x, ship.y, '#ff7a4a', 34, 300);
+  burst(ship.x, ship.y, '#ffffff', 16, 200);
+  spawnRing(ship.x, ship.y, '#ff4a4a', 140);
+
+  showOverlay(`
+    <h1>💥 БУКСИР УНИЧТОЖЕН</h1>
+    <p class="sub">Корпус не выдержал столкновений с астероидами.<br>
+    Станция потеряла ещё одного мусорщика...</p>
+    <div class="score-big">${score} кредитов</div>
+    <div class="stat-row">
+      <div>Мусора сдано<span>${delivered}</span></div>
+      <div>Рекорд<span>${bestScore}</span></div>
+    </div>
+    <button id="startBtn">НОВЫЙ РЕЙС</button>
+  `);
+}
+
+/* =========================================================
+   ОТРИСОВКА
+   ========================================================= */
+function drawBackground() {
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#050912');
+  g.addColorStop(0.5, '#070d1a');
+  g.addColorStop(1, '#04060d');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+
+  /* туманности */
+  for (const n of nebulas) {
+    const grd = ctx.createRadialGradient(n.x, n.y, 4, n.x, n.y, n.r);
+    grd.addColorStop(0, n.c0);
+    grd.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = grd;
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, n.r, 0, TAU);
+    ctx.fill();
+  }
+
+  /* звёзды */
+  for (const s of stars) {
+    const tw = 0.55 + Math.sin(time * 1.7 + s.ph) * 0.45;
+    ctx.globalAlpha = s.a * tw;
+    ctx.fillStyle = s.c;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r, 0, TAU);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawStation() {
+  const pulse = 1 + Math.sin(time * 2.2) * 0.045;
+
+  ctx.save();
+  ctx.translate(STATION.x, STATION.y);
+
+  /* приёмная зона */
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const zg = ctx.createRadialGradient(0, 0, STATION.r * 0.15, 0, 0, STATION.r * 1.15);
+  zg.addColorStop(0, 'rgba(53,255,158,0.16)');
+  zg.addColorStop(0.6, 'rgba(53,255,158,0.055)');
+  zg.addColorStop(1, 'rgba(53,255,158,0)');
+  ctx.fillStyle = zg;
+  ctx.beginPath();
+  ctx.arc(0, 0, STATION.r * 1.15 * pulse, 0, TAU);
+  ctx.fill();
+  ctx.restore();
+
+  /* пунктирная зона сбора */
+  ctx.save();
+  ctx.setLineDash([10, 12]);
+  ctx.lineDashOffset = -time * 26;
+  ctx.strokeStyle = 'rgba(53,255,158,0.42)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(0, 0, STATION.r * 0.74, 0, TAU);
+  ctx.stroke();
+  ctx.restore();
+
+  /* вращающиеся сегменты */
+  ctx.save();
+  ctx.rotate(time * 0.45);
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * TAU;
+    ctx.save();
+    ctx.rotate(a);
+    ctx.strokeStyle = 'rgba(110,230,255,0.55)';
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.arc(0, 0, STATION.r, -0.38, 0.38);
+    ctx.stroke();
+    ctx.restore();
+  }
+  ctx.restore();
+
+  /* внутреннее кольцо */
+  ctx.save();
+  ctx.rotate(-time * 0.72);
+  ctx.strokeStyle = 'rgba(110,230,255,0.28)';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(0, 0, STATION.r * 0.55, 0, TAU);
+  ctx.stroke();
+
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * TAU;
+    ctx.fillStyle = 'rgba(110,230,255,0.5)';
+    ctx.beginPath();
+    ctx.arc(Math.cos(a) * STATION.r * 0.55, Math.sin(a) * STATION.r * 0.55, 4.5, 0, TAU);
+    ctx.fill();
+  }
+  ctx.restore();
+
+  /* ядро */
+  const corePulse = 0.7 + Math.sin(time * 3.4) * 0.3;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const cg = ctx.createRadialGradient(0, 0, 2, 0, 0, 34);
+  cg.addColorStop(0, `rgba(180,255,225,${0.75 * corePulse})`);
+  cg.addColorStop(0.5, `rgba(53,255,158,${0.35 * corePulse})`);
+  cg.addColorStop(1, 'rgba(53,255,158,0)');
+  ctx.fillStyle = cg;
+  ctx.beginPath();
+  ctx.arc(0, 0, 34, 0, TAU);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.fillStyle = '#0b2a22';
+  ctx.beginPath();
+  ctx.arc(0, 0, 20, 0, TAU);
+  ctx.fill();
+  ctx.strokeStyle = '#35ff9e';
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+
+  /* символ переработки */
+  ctx.save();
+  ctx.rotate(time * 1.1);
+  ctx.strokeStyle = 'rgba(180,255,225,0.9)';
+  ctx.lineWidth = 2.2;
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * TAU;
+    ctx.beginPath();
+    ctx.arc(0, 0, 9, a + 0.3, a + 1.7);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  ctx.restore();
+
+  /* подпись */
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 12px Segoe UI, sans-serif';
+  ctx.fillStyle = 'rgba(53,255,158,0.75)';
+  ctx.fillText('ПЕРЕРАБОТКА', STATION.x, STATION.y + STATION.r + 26);
+  ctx.restore();
+}
+
+function drawDebris(d) {
+  ctx.save();
+  ctx.translate(d.x, d.y);
+
+  /* свечение при захвате */
+  if (d.attached) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const g = ctx.createRadialGradient(0, 0, 2, 0, 0, d.radius * 2.4);
+    g.addColorStop(0, 'rgba(110,240,255,0.45)');
+    g.addColorStop(1, 'rgba(110,240,255,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(0, 0, d.radius * 2.4, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  ctx.rotate(d.rot);
+  const wob = d.attached ? Math.sin(d.wob) * 0.06 : 0;
+  ctx.scale(1 + wob, 1 - wob);
+
+  if (d.type === 'bolt') {
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * TAU;
+      const px = Math.cos(a) * d.radius;
+      const py = Math.sin(a) * d.radius;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    const g = ctx.createLinearGradient(-d.radius, -d.radius, d.radius, d.radius);
+    g.addColorStop(0, d.color);
+    g.addColorStop(1, d.dark);
+    ctx.fillStyle = g;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath();
+    ctx.arc(0, 0, d.radius * 0.3, 0, TAU);
+    ctx.fill();
+
+  } else if (d.type === 'panel') {
+    const w = d.radius * 1.5, h = d.radius * 1.05;
+    const g = ctx.createLinearGradient(-w / 2, -h / 2, w / 2, h / 2);
+    g.addColorStop(0, d.color);
+    g.addColorStop(1, d.dark);
+    ctx.fillStyle = g;
+    ctx.fillRect(-w / 2, -h / 2, w, h);
+
+    ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+    ctx.lineWidth = 1.4;
+    ctx.strokeRect(-w / 2, -h / 2, w, h);
+
+    ctx.strokeStyle = 'rgba(190,240,255,0.4)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(-w / 2 + 3, -h / 2 + 4);
+    ctx.lineTo(w / 2 - 3, -h / 2 + 4);
+    ctx.moveTo(-w / 2 + 3, h / 2 - 4);
+    ctx.lineTo(w / 2 - 3, h / 2 - 4);
+    ctx.stroke();
+
+    ctx.fillStyle = 'rgba(180,235,255,0.55)';
+    ctx.fillRect(-w / 4, -2, w / 2, 4);
+
+  } else if (d.type === 'hull') {
+    ctx.beginPath();
+    const n = 7;
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * TAU;
+      const rr = d.radius * (i % 2 ? 0.72 : 1.0);
+      const px = Math.cos(a) * rr;
+      const py = Math.sin(a) * rr;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    const g = ctx.createLinearGradient(-d.radius, -d.radius, d.radius, d.radius);
+    g.addColorStop(0, d.color);
+    g.addColorStop(1, d.dark);
+    ctx.fillStyle = g;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
+    ctx.beginPath();
+    ctx.arc(-d.radius * 0.25, d.radius * 0.2, d.radius * 0.2, 0, TAU);
+    ctx.fill();
+
+  } else { /* core */
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const g = ctx.createRadialGradient(0, 0, 1, 0, 0, d.radius * 2.1);
+    g.addColorStop(0, 'rgba(255,215,94,0.55)');
+    g.addColorStop(1, 'rgba(255,215,94,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(0, 0, d.radius * 2.1, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+
+    ctx.beginPath();
+    ctx.arc(0, 0, d.radius, 0, TAU);
+    const g2 = ctx.createRadialGradient(-d.radius * 0.3, -d.radius * 0.3, 2, 0, 0, d.radius);
+    g2.addColorStop(0, '#fff6c8');
+    g2.addColorStop(0.55, d.color);
+    g2.addColorStop(1, d.dark);
+    ctx.fillStyle = g2;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(120,80,0,0.6)';
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.arc(0, 0, d.radius * 0.5, time * 2, time * 2 + 3.4);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+function drawAsteroid(a) {
+  ctx.save();
+  ctx.translate(a.x, a.y);
+
+  /* тень-ореол */
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const g = ctx.createRadialGradient(0, 0, a.radius * 0.5, 0, 0, a.radius * 1.6);
+  g.addColorStop(0, 'rgba(255,120,60,0.09)');
+  g.addColorStop(1, 'rgba(255,120,60,0)');
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(0, 0, a.radius * 1.6, 0, TAU);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.rotate(a.rot);
+
+  ctx.beginPath();
+  for (let i = 0; i < a.verts.length; i++) {
+    const v = a.verts[i];
+    const px = Math.cos(v.a) * v.r;
+    const py = Math.sin(v.a) * v.r;
+    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+
+  const bg = ctx.createRadialGradient(-a.radius * 0.35, -a.radius * 0.35, a.radius * 0.15, 0, 0, a.radius * 1.2);
+  bg.addColorStop(0, '#6b6259');
+  bg.addColorStop(0.55, '#4a443d');
+  bg.addColorStop(1, '#282420');
+  ctx.fillStyle = bg;
+  ctx.fill();
+
+  ctx.strokeStyle = 'rgba(15,12,10,0.85)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  /* кратеры */
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath();
+  ctx.arc(a.radius * 0.28, -a.radius * 0.18, a.radius * 0.24, 0, TAU);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(-a.radius * 0.32, a.radius * 0.30, a.radius * 0.17, 0, TAU);
+  ctx.fill();
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.arc(-a.radius * 0.1, -a.radius * 0.42, a.radius * 0.5, Math.PI * 1.1, Math.PI * 1.9);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function drawBeams() {
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  for (const d of debrisList) {
+    if (!d.attached) continue;
+
+    const g = ctx.createLinearGradient(ship.x, ship.y, d.x, d.y);
+    g.addColorStop(0, 'rgba(110,240,255,0.85)');
+    g.addColorStop(0.5, 'rgba(110,240,255,0.35)');
+    g.addColorStop(1, 'rgba(110,240,255,0.75)');
+
+    ctx.strokeStyle = g;
+    ctx.lineWidth = 2.6;
+    ctx.setLineDash([9, 7]);
+    ctx.lineDashOffset = -time * 60;
+    ctx.beginPath();
+    ctx.moveTo(ship.x, ship.y);
+    ctx.lineTo(d.x, d.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    /* волна по тросу */
+    const tt = (time * 1.6) % 1;
+    const px = ship.x + (d.x - ship.x) * tt;
+    const py = ship.y + (d.y - ship.y) * tt;
+    ctx.fillStyle = 'rgba(200,250,255,0.9)';
+    ctx.beginPath();
+    ctx.arc(px, py, 3, 0, TAU);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawShip() {
+  const s = ship;
+
+  /* поле магнита */
+  if (magnetOn) {
+    ctx.save();
+    ctx.translate(s.x, s.y);
+    ctx.globalCompositeOperation = 'lighter';
+
+    const g = ctx.createRadialGradient(0, 0, s.radius, 0, 0, MAGNET_RANGE);
+    g.addColorStop(0, 'rgba(110,240,255,0.10)');
+    g.addColorStop(0.65, 'rgba(110,240,255,0.035)');
+    g.addColorStop(1, 'rgba(110,240,255,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(0, 0, MAGNET_RANGE, 0, TAU);
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(110,240,255,0.20)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([6, 10]);
+    ctx.lineDashOffset = -time * 40;
+    ctx.beginPath();
+    ctx.arc(0, 0, MAGNET_RANGE * (0.55 + Math.sin(time * 2.2) * 0.06), 0, TAU);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.restore();
+  }
+
+  ctx.save();
+  ctx.translate(s.x, s.y);
+
+  /* мигание при неуязвимости */
+  if (s.inv > 0 && Math.floor(time * 18) % 2 === 0) {
+    ctx.globalAlpha = 0.45;
+  }
+
+  /* свечение корпуса */
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const hg = ctx.createRadialGradient(0, 0, 2, 0, 0, 34);
+  hg.addColorStop(0, 'rgba(110,230,255,0.30)');
+  hg.addColorStop(1, 'rgba(110,230,255,0)');
+  ctx.fillStyle = hg;
+  ctx.beginPath();
+  ctx.arc(0, 0, 34, 0, TAU);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.rotate(s.angle);
+
+  /* пламя двигателя */
+  if (s.thrusting > 0) {
+    const fl = 12 + Math.random() * 14;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const fg = ctx.createLinearGradient(-11, 0, -11 - fl, 0);
+    fg.addColorStop(0, 'rgba(200,250,255,0.95)');
+    fg.addColorStop(0.45, 'rgba(90,200,255,0.7)');
+    fg.addColorStop(1, 'rgba(60,120,255,0)');
+    ctx.fillStyle = fg;
+    ctx.beginPath();
+    ctx.moveTo(-11, -6.5);
+    ctx.lineTo(-11 - fl, 0);
+    ctx.lineTo(-11, 6.5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  } else if (s.thrusting < 0) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const fg = ctx.createLinearGradient(16, 0, 30, 0);
+    fg.addColorStop(0, 'rgba(255,210,140,0.85)');
+    fg.addColorStop(1, 'rgba(255,120,60,0)');
+    ctx.fillStyle = fg;
+    ctx.beginPath();
+    ctx.moveTo(14, -5);
+    ctx.lineTo(28, 0);
+    ctx.lineTo(14, 5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  /* корпус */
+  ctx.beginPath();
+  ctx.moveTo(18, 0);
+  ctx.lineTo(-11, -11);
+  ctx.lineTo(-6, 0);
+  ctx.lineTo(-11, 11);
+  ctx.closePath();
+
+  const bg = ctx.createLinearGradient(-12, -12, 18, 12);
+  bg.addColorStop(0, '#8fa8bd');
+  bg.addColorStop(0.5, '#e6f4ff');
+  bg.addColorStop(1, '#7d95ab');
+  ctx.fillStyle = bg;
+  ctx.fill();
+
+  ctx.strokeStyle = '#1d2b3a';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  /* кабина */
+  ctx.beginPath();
+  ctx.arc(3, 0, 5, 0, TAU);
+  const cg = ctx.createRadialGradient(2, -1.5, 1, 3, 0, 5);
+  cg.addColorStop(0, '#c8f4ff');
+  cg.addColorStop(0.5, '#3aa8dd');
+  cg.addColorStop(1, '#134a68');
+  ctx.fillStyle = cg;
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(10,30,45,0.7)';
+  ctx.lineWidth = 1.3;
+  ctx.stroke();
+
+  /* боковые огни */
+  ctx.fillStyle = '#35ff9e';
+  ctx.beginPath();
+  ctx.arc(-7, -8, 2.1, 0, TAU);
+  ctx.fill();
+  ctx.fillStyle = '#ff5a5a';
+  ctx.beginPath();
+  ctx.arc(-7, 8, 2.1, 0, TAU);
+  ctx.fill();
+
+  /* полоски */
+  ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  ctx.moveTo(-4, -6.5);
+  ctx.lineTo(6, -2.5);
+  ctx.moveTo(-4, 6.5);
+  ctx.lineTo(6, 2.5);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function render() {
+  ctx.save();
+
+  if (shake > 0) {
+    ctx.translate(rnd(-1, 1) * shake * 9, rnd(-1, 1) * shake * 9);
+  }
+
+  drawBackground();
+  drawStation();
+
+  /* кольца */
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  for (const r of rings) {
+    const a = r.life / r.maxLife;
+    ctx.globalAlpha = a * 0.75;
+    ctx.strokeStyle = r.color;
+    ctx.lineWidth = 3 * a + 0.5;
+    ctx.beginPath();
+    ctx.arc(r.x, r.y, r.r, 0, TAU);
+    ctx.stroke();
+  }
+  ctx.restore();
+  ctx.globalAlpha = 1;
+
+  drawBeams();
+
+  for (const d of debrisList) drawDebris(d);
+  for (const a of asteroids) drawAsteroid(a);
+
+  if (ship.hull > 0) drawShip();
+
+  /* частицы */
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  for (const p of particles) {
+    const a = clamp(p.life / p.maxLife, 0, 1);
+    ctx.globalAlpha = a;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size * a, 0, TAU);
+    ctx.fill();
+  }
+  ctx.restore();
+  ctx.globalAlpha = 1;
+
+  /* всплывающий текст */
+  for (const t of texts) {
+    const a = clamp(t.life, 0, 1);
+    ctx.globalAlpha = a;
+    ctx.font = 'bold 15px Segoe UI, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+    ctx.strokeText(t.text, t.x, t.y);
+    ctx.fillStyle = t.color;
+    ctx.fillText(t.text, t.x, t.y);
+  }
+  ctx.globalAlpha = 1;
+
+  ctx.restore();
+
+  /* вспышка */
+  if (flash > 0) {
+    ctx.fillStyle = `rgba(180,240,255,${flash * 0.5})`;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  /* виньетка */
+  const vg = ctx.createRadialGradient(W / 2, H / 2, H * 0.32, W / 2, H / 2, H * 0.98);
+  vg.addColorStop(0, 'rgba(0,0,0,0)');
+  vg.addColorStop(1, 'rgba(0,0,0,0.62)');
+  ctx.fillStyle = vg;
+  ctx.fillRect(0, 0, W, H);
+
+  /* подсказка управления в начале */
+  if (state === 'playing' && time < 7) {
+    const a = clamp((7 - time) / 2, 0, 1) * 0.75;
+    ctx.globalAlpha = a;
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 14px Segoe UI, sans-serif';
+    ctx.fillStyle = '#9fd8ff';
+    ctx.fillText('W — тяга   •   A/D — поворот   •   ПРОБЕЛ — магнит   •   S — тормоз', W / 2, H - 34);
+    ctx.globalAlpha = 1;
+  }
+
+  /* пауза */
+  if (state === 'paused') {
+    ctx.fillStyle = 'rgba(3,7,14,0.74)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 46px Segoe UI, sans-serif';
+    ctx.fillStyle = '#7fe7ff';
+    ctx.fillText('ПАУЗА', W / 2, H / 2 - 6);
+    ctx.font = 'bold 17px Segoe UI, sans-serif';
+    ctx.fillStyle = '#93aec4';
+    ctx.fillText('ESC / P — продолжить   •   R — перезапуск', W / 2, H / 2 + 36);
+  }
+}
+
+/* =========================================================
+   HUD
+   ========================================================= */
+const uiScore = document.getElementById('ui-score');
+const uiCargo = document.getElementById('ui-cargo');
+const uiDeliv = document.getElementById('ui-deliv');
+const uiMag   = document.getElementById('ui-mag');
+const magStat = document.getElementById('mag-stat');
+const hullFill = document.getElementById('hull-fill');
+
+function updateHUD() {
+  uiScore.textContent = score;
+  uiDeliv.textContent = delivered;
+
+  const cm = cargoMass();
+  uiCargo.textContent = cm.toFixed(1) + ' т';
+  uiCargo.style.color = cm > 7 ? '#ffb347' : (cm > 3 ? '#ffd75e' : '#ffffff');
+
+  uiMag.textContent = magnetOn ? 'ВКЛ' : 'ВЫКЛ';
+  if (magnetOn) magStat.classList.add('on');
+  else magStat.classList.remove('on');
+
+  const hp = ship ? clamp(ship.hull / ship.maxHull, 0, 1) : 1;
+  hullFill.style.width = (hp * 100) + '%';
+  hullFill.style.background = hp > 0.6
+    ? 'linear-gradient(90deg,#35ff9e,#7fe7ff)'
+    : hp > 0.3
+      ? 'linear-gradient(90deg,#ffd75e,#ff9f1a)'
+      : 'linear-gradient(90deg,#ff4a4a,#ff7a4a)';
+}
+
+/* =========================================================
+   ОВЕРЛЕЙ
+   ========================================================= */
+const overlay = document.getElementById('overlay');
+const panel   = document.getElementById('panel');
+
+function showOverlay(html) {
+  panel.innerHTML = html;
+  overlay.classList.remove('hidden');
+  const btn = document.getElementById('startBtn');
+  if (btn) btn.onclick = startGame;
+}
+
+function hideOverlay() {
+  overlay.classList.add('hidden');
+}
+
+function menuScreen() {
+  showOverlay(`
+    <h1>🛰 ORBIT RECOVERY</h1>
+    <p class="sub">Ты — пилот космического буксира на орбите заброшенной станции.<br>
+    Собирай ценный мусор магнитом и тащи его в переработчик. Не врежься в астероиды.</p>
+    <div class="controls">
+      <div><b>W / ↑</b> — тяга вперёд &nbsp;•&nbsp; <b>S / ↓</b> — тормоз / реверс</div>
+      <div><b>A / D</b> или <b>← →</b> — поворот корпуса</div>
+      <div><b>ПРОБЕЛ</b> — включить / выключить магнит 🧲</div>
+      <div><b>ESC / P</b> — пауза &nbsp;•&nbsp; <b>R</b> — перезапуск</div>
+    </div>
+    <p class="hint">
+      Магнит цепляет ближайший мусор в радиусе действия. Чем больше груза на тросе —<br>
+      тем медленнее разгон и хуже управляемость. Столкновение с астероидом сбрасывает груз.<br>
+      Сдавай мусор в зелёный круг в центре станции.
+    </p>
+    <button id="startBtn">НАЧАТЬ РЕЙС</button>
+  `);
+}
+
+/* =========================================================
+   СТАРТ / ВВОД
+   ========================================================= */
+function startGame() {
+  resetGame();
+  hideOverlay();
+  state = 'playing';
+}
+
+window.addEventListener('keydown', e => {
+  if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
+    e.preventDefault();
+  }
+
+  keys[e.code] = true;
+
+  if (e.code === 'Space') {
+    if (state === 'menu' || state === 'gameover') {
+      startGame();
+      return;
+    }
+    if (state === 'playing' && !e.repeat) {
+      setMagnet(!magnetOn);
+    }
+    return;
+  }
+
+  if (e.code === 'Escape' || e.code === 'KeyP') {
+    if (state === 'playing') state = 'paused';
+    else if (state === 'paused') state = 'playing';
+    return;
+  }
+
+  if (e.code === 'KeyR' && state === 'playing') {
+    resetGame();
+    return;
+  }
+
+  if (e.code === 'Enter' && (state === 'menu' || state === 'gameover')) {
+    startGame();
+  }
+});
+
+window.addEventListener('keyup', e => {
+  keys[e.code] = false;
+});
+
+window.addEventListener('blur', () => {
+  for (const k in keys) keys[k] = false;
+  if (state === 'playing') state = 'paused';
+});
+
+/* =========================================================
+   ФОН
+   ========================================================= */
+stars = [];
+for (let i = 0; i < 190; i++) {
+  const c = Math.random();
+  stars.push({
+    x: Math.random() * W,
+    y: Math.random() * H,
+    r: rnd(0.3, 1.7),
+    a: rnd(0.12, 0.62),
+    ph: Math.random() * TAU,
+    c: c > 0.9 ? '#ffe9c4' : (c > 0.75 ? '#bfe6ff' : '#ffffff'),
+  });
+}
+
+nebulas = [
+  { x: 200, y: 140, r: 300, c0: 'rgba(40,90,190,0.14)' },
+  { x: 790, y: 500, r: 340, c0: 'rgba(120,50,180,0.11)' },
+  { x: 820, y: 120, r: 240, c0: 'rgba(30,150,180,0.10)' },
+  { x: 130, y: 520, r: 260, c0: 'rgba(160,60,110,0.09)' },
+];
+
+/* =========================================================
+   ГЛАВНЫЙ ЦИКЛ
+   ========================================================= */
+let lastTime = performance.now();
+
+function loop(now) {
+  let dt = (now - lastTime) / 1000;
+  lastTime = now;
+  dt = Math.min(dt, 1 / 30);
+
+  update(dt);
+  render();
+  updateHUD();
+
+  requestAnimationFrame(loop);
+}
+
+/* =========================================================
+   ИНИЦИАЛИЗАЦИЯ
+   ========================================================= */
+resetGame();
+menuScreen();
+requestAnimationFrame(loop);
+</script>
+
+<script>
+  // Запоминаем, какую игру нужно оценить после возврата
+  document.getElementById('backToMain').addEventListener('click', function () {
+    try { localStorage.setItem('genrelab_pending', '3'); } catch (e) {}
+  });
+</script>
+
+</body>
+</html>

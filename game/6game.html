@@ -1,0 +1,1740 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Infection Vector — Внедрение</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;background:#03060c;color:#c9e4ff;overflow:hidden;
+    font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  #app{display:flex;height:100vh;gap:12px;padding:12px}
+
+  /* ---------- CANVAS ---------- */
+  #canvasWrap{
+    position:relative;flex:1;min-width:0;
+    display:flex;align-items:center;justify-content:center;
+  }
+  canvas{
+    max-width:100%;max-height:100%;
+    border-radius:12px;border:1px solid #16304d;
+    box-shadow:0 0 60px rgba(34,211,238,.07), inset 0 0 60px rgba(0,0,0,.6);
+    cursor:crosshair;display:block;
+  }
+  canvas.mineMode{cursor:cell}
+  canvas.empArmed{cursor:crosshair;box-shadow:0 0 60px rgba(125,211,252,.35)}
+
+  /* ---------- SIDEBAR ---------- */
+  #side{
+    width:330px;flex:none;background:#070d18;
+    border:1px solid #12233a;border-radius:12px;
+    padding:14px;overflow-y:auto;display:flex;flex-direction:column;gap:12px;
+  }
+  #side::-webkit-scrollbar{width:8px}
+  #side::-webkit-scrollbar-track{background:#050a13}
+  #side::-webkit-scrollbar-thumb{background:#17304d;border-radius:4px}
+
+  .headRow{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+  h1{
+    margin:0;font-size:17px;letter-spacing:3px;font-weight:800;
+    color:#7dd3fc;text-shadow:0 0 18px rgba(34,211,238,.6);
+  }
+  .sub{font-size:10px;letter-spacing:4px;color:#3f5f80;margin-top:-6px;text-transform:uppercase}
+
+  #btnHelp{
+    width:30px;height:30px;flex:none;border-radius:8px;
+    border:1px solid #1d4d6b;background:#0b1826;color:#7dd3fc;
+    font-size:15px;font-weight:800;cursor:pointer;transition:.15s;
+    display:flex;align-items:center;justify-content:center;line-height:1;padding:0;
+  }
+  #btnHelp:hover{background:#14304d;border-color:#2f7fa8;box-shadow:0 0 18px rgba(34,211,238,.25)}
+
+  #levelBox{
+    border:1px solid #12304a;border-radius:8px;padding:9px 11px;
+    background:linear-gradient(180deg,#0a1727,#07101c);
+  }
+  #levelName{font-size:12px;letter-spacing:2px;color:#67e8f9;font-weight:700}
+  #budgetInfo{font-size:12px;color:#8fb3d4;margin-top:5px;font-family:ui-monospace,Consolas,monospace}
+  #budgetInfo b{color:#4ade80}
+
+  .section{display:flex;flex-direction:column;gap:7px}
+  .secTitle{
+    font-size:10px;letter-spacing:2.5px;color:#3f6d94;text-transform:uppercase;
+    font-weight:700;border-bottom:1px solid #0f2035;padding-bottom:5px;
+  }
+
+  .unitRow{
+    display:grid;grid-template-columns:10px 1fr auto;gap:8px;align-items:center;
+    background:#0a1320;border:1px solid #101f33;border-radius:8px;padding:7px 9px;
+  }
+  .uDot{width:10px;height:10px;border-radius:50%}
+  .uName{font-size:11.5px;font-weight:700;color:#cfe9ff}
+  .uStats{font-size:9.5px;color:#517a9e;margin-top:2px;line-height:1.35}
+  .uCtrl{display:flex;align-items:center;gap:6px}
+  .uCtrl button{
+    width:22px;height:22px;border-radius:6px;border:1px solid #1d3d5e;
+    background:#0d1c2e;color:#7dd3fc;font-size:14px;font-weight:800;
+    cursor:pointer;line-height:1;padding:0;transition:.12s;
+  }
+  .uCtrl button:hover{background:#14304d;border-color:#2a5f8f}
+  .uCtrl button:active{transform:scale(.9)}
+  .uCtrl span{
+    min-width:16px;text-align:center;font-family:ui-monospace,monospace;
+    font-size:13px;color:#e2f4ff;font-weight:700;
+  }
+
+  button.big{
+    width:100%;padding:11px;border-radius:9px;border:1px solid #1d4d6b;
+    background:linear-gradient(180deg,#0e2a3d,#081825);
+    color:#7dd3fc;font-weight:800;letter-spacing:2px;font-size:12px;
+    cursor:pointer;transition:.15s;text-transform:uppercase;
+  }
+  button.big:hover:not(:disabled){background:linear-gradient(180deg,#14405c,#0b2233);border-color:#2f7fa8;box-shadow:0 0 22px rgba(34,211,238,.2)}
+  button.big:disabled{opacity:.32;cursor:not-allowed}
+  button.launch{
+    background:linear-gradient(180deg,#0f3d2b,#082318);border-color:#1e7a4d;color:#4ade80;
+  }
+  button.launch:hover:not(:disabled){background:linear-gradient(180deg,#166b45,#0b2e1f);border-color:#31c46f;box-shadow:0 0 26px rgba(74,222,128,.28)}
+
+  .abil{
+    width:100%;padding:9px;border-radius:8px;border:1px solid #1d3d5e;
+    background:#0b1826;color:#a5d8ff;font-weight:700;font-size:11.5px;
+    cursor:pointer;display:flex;justify-content:space-between;align-items:center;
+    transition:.15s;letter-spacing:.5px;
+  }
+  .abil:hover:not(:disabled){background:#122840;border-color:#2e6493}
+  .abil:disabled{opacity:.3;cursor:not-allowed}
+  .abil.armed{
+    background:#123a52;border-color:#38bdf8;color:#e0f7ff;
+    box-shadow:0 0 20px rgba(56,189,248,.45);
+  }
+  .abil span{font-family:ui-monospace,monospace;color:#67e8f9}
+
+  .hint{font-size:9.5px;color:#3f6d94;line-height:1.5}
+  .hint b{color:#7dd3fc}
+
+  .legend{display:flex;flex-direction:column;gap:4px}
+  .lgRow{display:flex;align-items:center;gap:7px;font-size:9.5px;color:#5f8cb0}
+  .lgDot{width:8px;height:8px;border-radius:2px;transform:rotate(45deg);flex:none}
+
+  /* ---------- OVERLAY ---------- */
+  #overlay{
+    position:absolute;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:14px;
+    background:rgba(3,7,14,.82);backdrop-filter:blur(6px);
+    border-radius:12px;text-align:center;padding:24px;z-index:5;
+  }
+  #overlay.hidden{display:none}
+  #ovTitle{
+    margin:0;font-size:30px;letter-spacing:6px;font-weight:900;
+    color:#7dd3fc;text-shadow:0 0 34px rgba(34,211,238,.65);
+  }
+  #ovTitle.lose{color:#f87171;text-shadow:0 0 34px rgba(248,113,113,.6)}
+  #ovText{margin:0;font-size:13px;color:#8fb3d4;max-width:520px;line-height:1.6}
+  .ovBtns{display:flex;gap:10px;margin-top:6px;flex-wrap:wrap;justify-content:center}
+  .ovBtns button{
+    padding:11px 22px;border-radius:9px;border:1px solid #1d4d6b;
+    background:linear-gradient(180deg,#0e2a3d,#081825);color:#7dd3fc;
+    font-weight:800;letter-spacing:2px;font-size:11.5px;cursor:pointer;
+    transition:.15s;text-transform:uppercase;
+  }
+  .ovBtns button:hover{background:linear-gradient(180deg,#14405c,#0b2233);border-color:#2f7fa8}
+  .ovBtns button.primary{background:linear-gradient(180deg,#0f3d2b,#082318);border-color:#1e7a4d;color:#4ade80}
+  .ovBtns button.primary:hover{background:linear-gradient(180deg,#166b45,#0b2e1f);border-color:#31c46f}
+
+  /* ---------- INTRO / БРИФИНГ ---------- */
+#intro{
+  position:fixed;inset:0;z-index:100;
+  display:flex;align-items:center;justify-content:center;padding:16px;
+  background:radial-gradient(circle at 50% 35%, rgba(11,34,56,.94), rgba(2,5,10,.975));
+  backdrop-filter:blur(9px);
+}
+#intro.hidden{display:none}
+
+.introCard{
+  width:min(780px,100%);
+  max-height:calc(100vh - 32px);
+  display:flex;flex-direction:column;overflow:hidden;
+  background:linear-gradient(180deg,#081422,#060d18);
+  border:1px solid #17395a;border-radius:16px;
+  box-shadow:0 0 90px rgba(34,211,238,.13), 0 24px 70px rgba(0,0,0,.85);
+  padding:22px 26px 18px;
+  gap:14px;
+}
+
+.introTitle{
+  margin:0;font-size:25px;letter-spacing:7px;font-weight:900;
+  color:#7dd3fc;text-shadow:0 0 30px rgba(34,211,238,.7);
+}
+.introSub{
+  font-size:10px;letter-spacing:4px;color:#3f6d94;
+  text-transform:uppercase;margin-top:6px;
+}
+
+/* прокручивается ТОЛЬКО эта зона, футер с кнопками всегда виден */
+.slides{
+  flex:1 1 auto;
+  min-height:0;
+  overflow-y:auto;
+  padding-right:8px;
+  scrollbar-width:thin;
+  scrollbar-color:#17304d #050a13;
+}
+.slides::-webkit-scrollbar{width:7px}
+.slides::-webkit-scrollbar-track{background:#050a13;border-radius:4px}
+.slides::-webkit-scrollbar-thumb{background:#17304d;border-radius:4px}
+
+.slide{display:none}
+.slide.active{display:block;animation:slideIn .32s ease both}
+@keyframes slideIn{
+  from{opacity:0;transform:translateY(10px)}
+  to{opacity:1;transform:translateY(0)}
+}
+
+.slideTag{
+  display:inline-block;font-size:9.5px;letter-spacing:3px;font-weight:800;
+  color:#22d3ee;background:rgba(34,211,238,.09);
+  border:1px solid rgba(34,211,238,.3);border-radius:20px;
+  padding:4px 12px;margin-bottom:12px;
+}
+.slideTitle{
+  margin:0 0 8px;font-size:19px;letter-spacing:1.5px;font-weight:800;color:#e2f4ff;
+}
+.slideText{
+  margin:0 0 16px;font-size:12.5px;line-height:1.7;color:#8fb3d4;max-width:620px;
+}
+.slideText b{color:#7dd3fc}
+
+.cards{display:flex;flex-direction:column;gap:9px}
+.icard{
+  display:grid;grid-template-columns:38px 1fr;gap:12px;align-items:start;
+  background:#0a1522;border:1px solid #11253a;border-radius:10px;
+  padding:11px 13px;transition:.18s;
+}
+.icard:hover{border-color:#1d4d6b;background:#0c1a29}
+.ico{
+  width:38px;height:38px;border-radius:9px;flex:none;
+  display:flex;align-items:center;justify-content:center;
+  font-size:17px;line-height:1;
+  background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);
+}
+.icard b{
+  display:block;font-size:11.5px;letter-spacing:1.4px;text-transform:uppercase;
+  margin-bottom:3px;
+}
+.icard span{font-size:11.5px;line-height:1.6;color:#7d9fbe}
+.icard span b{display:inline;font-size:inherit;letter-spacing:0;text-transform:none;color:#cfe9ff}
+.kbd{
+  display:inline-block;font-family:ui-monospace,Consolas,monospace;font-size:10.5px;
+  padding:1px 6px;border-radius:5px;background:#0d1c2e;border:1px solid #1d3d5e;
+  color:#7dd3fc;margin:0 1px;
+}
+
+/* футер НЕ участвует в скролле — кнопки всегда на месте */
+.introFoot{
+  flex:none;
+  display:flex;align-items:center;justify-content:space-between;gap:14px;
+  border-top:1px solid #0f2035;padding-top:14px;flex-wrap:wrap;
+}
+.dots{display:flex;gap:8px}
+.dot{
+  width:9px;height:9px;border-radius:50%;cursor:pointer;
+  background:#16304d;border:1px solid #1d4d6b;transition:.2s;padding:0;
+}
+.dot.on{background:#38bdf8;border-color:#7dd3fc;box-shadow:0 0 12px rgba(56,189,248,.8)}
+.dot:hover{background:#2a5f8f}
+
+.introBtns{display:flex;gap:9px;flex-wrap:wrap}
+.introBtns button{
+  padding:10px 20px;border-radius:9px;border:1px solid #1d4d6b;
+  background:linear-gradient(180deg,#0e2a3d,#081825);color:#7dd3fc;
+  font-weight:800;letter-spacing:2px;font-size:11px;cursor:pointer;
+  transition:.15s;text-transform:uppercase;
+}
+.introBtns button:hover:not(:disabled){background:linear-gradient(180deg,#14405c,#0b2233);border-color:#2f7fa8}
+.introBtns button:disabled{opacity:.3;cursor:not-allowed}
+.introBtns button.primary{
+  background:linear-gradient(180deg,#0f3d2b,#082318);border-color:#1e7a4d;color:#4ade80;
+}
+.introBtns button.primary:hover{background:linear-gradient(180deg,#166b45,#0b2e1f);border-color:#31c46f;box-shadow:0 0 24px rgba(74,222,128,.3)}
+.introBtns button.ghost{background:transparent;border-color:#16304d;color:#5f8cb0}
+  #tip{
+    position:fixed;pointer-events:none;display:none;z-index:50;
+    background:rgba(6,14,24,.96);border:1px solid #1d4d6b;border-radius:7px;
+    padding:7px 10px;font-size:10.5px;color:#a5d8ff;line-height:1.55;
+    box-shadow:0 6px 24px rgba(0,0,0,.7);white-space:nowrap;
+  }
+  #tip b{color:#e2f4ff}
+  #tip .c{font-family:ui-monospace,monospace;color:#67e8f9}
+
+  @media (max-width:900px){
+    #app{flex-direction:column;padding:8px}
+    #side{width:100%;max-height:42vh;flex-direction:row;flex-wrap:wrap;align-items:flex-start}
+    #side>*{flex:1 1 200px}
+    .introCard{padding:20px 18px}
+    .introTitle{font-size:19px;letter-spacing:4px}
+    .slides{min-height:0}
+  }
+
+  /* Кнопка «На главную» */
+.back-to-main {
+  position: fixed;
+  top: 14px;
+  left: 14px;
+  z-index: 9999;
+  padding: 9px 16px;
+  font-family: 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .3px;
+  color: #e8e8f0;
+  background: rgba(12, 12, 20, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  text-decoration: none;
+  backdrop-filter: blur(6px);
+  transition: background .15s, border-color .15s, transform .15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.back-to-main:hover {
+  background: rgba(30, 30, 45, 0.95);
+  border-color: rgba(255, 215, 94, 0.55);
+  color: #ffd75e;
+  transform: translateY(-1px);
+}
+.back-to-main:active {
+  transform: translateY(1px);
+}
+
+</style>
+</head>
+<body>
+
+<a href="../index.html" id="backToMain" class="back-to-main">← На главную</a>
+
+<div id="app">
+
+  <div id="canvasWrap">
+    <canvas id="cv" width="960" height="560"></canvas>
+    <div id="overlay" class="hidden">
+      <h2 id="ovTitle"></h2>
+      <p id="ovText"></p>
+      <div class="ovBtns">
+        <button id="ovBtn1"></button>
+        <button id="ovBtn2"></button>
+      </div>
+    </div>
+  </div>
+
+  <aside id="side">
+    <div class="headRow">
+      <div>
+        <h1>INFECTION VECTOR</h1>
+        <div class="sub">Внедрение</div>
+      </div>
+      <button id="btnHelp" title="Инструкция / брифинг">?</button>
+    </div>
+
+    <div id="levelBox">
+      <div id="levelName">УРОВЕНЬ 1</div>
+      <div id="budgetInfo">0 / 0 БИТ</div>
+    </div>
+
+    <div class="section">
+      <div class="secTitle">Отряд данных</div>
+      <div id="squadList" style="display:flex;flex-direction:column;gap:6px"></div>
+    </div>
+
+    <div class="section">
+      <div class="secTitle">Подготовка</div>
+      <button id="btnMine" class="big">⊕ Имплант-мина · 15Б</button>
+      <div class="hint">
+        <b>ЛКМ</b> по карте — точка маршрута · <b>ПКМ</b> — убрать точку/мину<br>
+        <b>Space</b> — запуск · <b>R</b> — очистить маршрут
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="secTitle">Активные способности</div>
+      <button id="btnEmp" class="abil">⚡ EMP-импульс <span id="empCnt">×0</span></button>
+      <button id="btnShield" class="abil">🛡 Фаервол-щит <span id="shCnt">×0</span></button>
+      <div class="hint" id="empHint">Клавиша <b>1</b> — активировать EMP, затем клик по карте.<br>Клавиша <b>2</b> — щит на 3 сек.</div>
+    </div>
+
+    <button id="btnLaunch" class="big launch">▶ НАЧАТЬ ВНЕДРЕНИЕ</button>
+    <button id="btnReset" class="big">↺ Сбросить уровень</button>
+
+    <div class="section">
+      <div class="secTitle">Защита сети</div>
+      <div class="legend" id="legend"></div>
+    </div>
+  </aside>
+</div>
+
+<div id="tip"></div>
+
+<!-- ============ БРИФИНГ / ИНСТРУКЦИЯ ============ -->
+<div id="intro">
+  <div class="introCard">
+
+    <div>
+      <h1 class="introTitle">INFECTION VECTOR</h1>
+      <div class="introSub">Внедрение · брифинг оператора</div>
+    </div>
+
+    <div class="slides">
+
+      <!-- СЛАЙД 1 -->
+      <div class="slide active">
+        <div class="slideTag">01 · КОНЦЕПЦИЯ</div>
+        <h2 class="slideTitle">Ты — вирус. Сеть уже вооружена.</h2>
+        <p class="slideText">
+          В обычном Tower Defense ты строишь турели и отбиваешь волны врагов.
+          Здесь всё <b>наоборот</b>: корпоративная сеть уже застроена антивирусной
+          защитой, а ты ведёшь свой отряд данных на прорыв к ядру.
+        </p>
+        <div class="cards">
+          <div class="icard">
+            <div class="ico" style="color:#4ade80">◎</div>
+            <div>
+              <b style="color:#4ade80">Цель</b>
+              <span>Провести <b>хотя бы один</b> пакет данных от ВХОДА (слева) до ЯДРА (справа).</span>
+            </div>
+          </div>
+          <div class="icard">
+            <div class="ico" style="color:#f87171">⚠</div>
+            <div>
+              <b style="color:#f87171">Угроза</b>
+              <span>4 типа турелей: Сканер, Фаервол, Снайпер и Глушитель. Все они стреляют по твоему отряду.</span>
+            </div>
+          </div>
+          <div class="icard">
+            <div class="ico" style="color:#7dd3fc">⚡</div>
+            <div>
+              <b style="color:#7dd3fc">Инструменты</b>
+              <span>EMP-импульс, Фаервол-щит и Имплант-мины — помогут прорваться сквозь плотный огонь.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- СЛАЙД 2 -->
+      <div class="slide">
+        <div class="slideTag">02 · ФАЗА ПЛАНИРОВАНИЯ</div>
+        <h2 class="slideTitle">Собери отряд и проложи маршрут</h2>
+        <p class="slideText">
+          На подготовку даётся ограниченный бюджет в битах. Собери отряд и наметь,
+          как он пойдёт — от этого зависит всё.
+        </p>
+        <div class="cards">
+          <div class="icard">
+            <div class="ico" style="color:#38bdf8">▣</div>
+            <div>
+              <b style="color:#38bdf8">Отряд</b>
+              <span>
+                <b>Бронированный пакет</b> — живучий, но медленный ·
+                <b>Быстрый троян</b> — шустрый, но хрупкий ·
+                <b>Вирус-камикадзе</b> — взрывается при смерти, нанося урон турелям.
+                Состав собирается кнопками <span class="kbd">+</span> <span class="kbd">−</span> в панели справа.
+              </span>
+            </div>
+          </div>
+          <div class="icard">
+            <div class="ico" style="color:#22d3ee">✎</div>
+            <div>
+              <b style="color:#22d3ee">Маршрут</b>
+              <span>
+                <span class="kbd">ЛКМ</span> по карте — поставить точку маршрута ·
+                <span class="kbd">ПКМ</span> — убрать последнюю точку ·
+                <span class="kbd">R</span> — очистить маршрут целиком.
+              </span>
+            </div>
+          </div>
+          <div class="icard">
+            <div class="ico" style="color:#4ade80">⊕</div>
+            <div>
+              <b style="color:#4ade80">Имплант-мина · 15Б</b>
+              <span>Ставится на карте. Когда твой юнит пробегает рядом — мина детонирует и наносит турелям в радиусе 170 урона.</span>
+            </div>
+          </div>
+          <div class="icard">
+            <div class="ico" style="color:#a5d8ff">▶</div>
+            <div>
+              <b style="color:#a5d8ff">Запуск</b>
+              <span>Кнопка <b>«НАЧАТЬ ВНЕДРЕНИЕ»</b> или клавиша <span class="kbd">Space</span>.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- СЛАЙД 3 -->
+      <div class="slide">
+        <div class="slideTag">03 · ФАЗА ПРОРЫВА</div>
+        <h2 class="slideTitle">Пробейся сквозь огонь</h2>
+        <p class="slideText">
+          Отряд бежит по маршруту автоматически — твоя задача управлять способностями
+          и вовремя гасить самые опасные турели.
+        </p>
+        <div class="cards">
+          <div class="icard">
+            <div class="ico" style="color:#7dd3fc">⚡</div>
+            <div>
+              <b style="color:#7dd3fc">EMP-импульс · клавиша 1</b>
+              <span>Нажми <span class="kbd">1</span>, затем кликни по карте. Оглушает все турели в радиусе 145 на 3 секунды и сбивает летящие снаряды.</span>
+            </div>
+          </div>
+          <div class="icard">
+            <div class="ico" style="color:#a5f3fc">🛡</div>
+            <div>
+              <b style="color:#a5f3fc">Фаервол-щит · клавиша 2</b>
+              <span>Все юниты отряда становятся неуязвимы на 3 секунды. Идеально для рывка через плотный огонь.</span>
+            </div>
+          </div>
+          <div class="icard">
+            <div class="ico" style="color:#f87171">✖</div>
+            <div>
+              <b style="color:#f87171">Провал</b>
+              <span>Если весь отряд уничтожен до того, как хотя бы один юнит дойдёт до ядра — внедрение провалено.</span>
+            </div>
+          </div>
+          <div class="icard">
+            <div class="ico" style="color:#67e8f9">?</div>
+            <div>
+              <b style="color:#67e8f9">Подсказка</b>
+              <span>Наведи курсор на любую турель — увидишь её HP, урон, DPS и дальность. Этот брифинг можно открыть снова кнопкой <b>?</b> в панели справа.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="introFoot">
+      <div class="dots">
+        <button class="dot on" data-i="0" aria-label="Слайд 1"></button>
+        <button class="dot" data-i="1" aria-label="Слайд 2"></button>
+        <button class="dot" data-i="2" aria-label="Слайд 3"></button>
+      </div>
+      <div class="introBtns">
+        <button id="introSkip" class="ghost">Пропустить</button>
+        <button id="introPrev" disabled>Назад</button>
+        <button id="introNext" class="primary">Далее</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   INFECTION VECTOR — реверс-Tower Defense
+   ========================================================= */
+
+const cv  = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+
+const CELL = 40, COLS = 24, ROWS = 14;
+const W = COLS * CELL, H = ROWS * CELL;
+
+const ENTRY = { x: 18,      y: 7 * CELL + CELL / 2 };
+const CORE  = { x: W - 26,  y: 7 * CELL + CELL / 2 };
+
+const MINE_COST = 15;
+
+/* ---------------- ДАННЫЕ ---------------- */
+
+const UNIT_TYPES = {
+  tank: { name:'Бронированный пакет', hp:320, speed:52,  cost:30, radius:11, color:'#38bdf8',
+          desc:'Тяжёлый. Держит удар.' },
+  fast: { name:'Быстрый троян',       hp:95,  speed:135, cost:20, radius:8,  color:'#4ade80',
+          desc:'Проскочит, но хрупкий.' },
+  kami: { name:'Вирус-камикадзе',     hp:70,  speed:105, cost:25, radius:9,  color:'#f87171',
+          desc:'Взрыв 140 урона при смерти.' },
+};
+
+const TURRETS = {
+  scanner:{ name:'Сканер',    range:135, dmg:9,  rate:1.5,  hp:160, color:'#22d3ee', pspd:560, r:14 },
+  flame:  { name:'Фаервол',   range:88,  dmg:5,  rate:5.5,  hp:230, color:'#fb923c', pspd:380, r:15 },
+  sniper: { name:'Снайпер',   range:255, dmg:40, rate:0.5,  hp:130, color:'#c084fc', hitscan:true, r:14 },
+  slow:   { name:'Глушитель', range:120, dmg:0,  rate:1,    hp:120, color:'#facc15', slow:true, r:14 },
+};
+
+const LEVELS = [
+  {
+    name:'ПЕРИМЕТР', budget:150, mines:2, emp:2, shield:1,
+    turrets:[
+      ['scanner', 6, 4], ['scanner', 6,10],
+      ['flame',  11, 7],
+      ['slow',   14,10],
+      ['sniper', 17, 3],
+      ['scanner',19, 7],
+    ]
+  },
+  {
+    name:'ЯДРО СЕТИ', budget:200, mines:3, emp:2, shield:1,
+    turrets:[
+      ['scanner', 4, 3], ['scanner', 4,11],
+      ['sniper',  9, 7],
+      ['flame',  12, 4], ['flame', 12,10],
+      ['slow',   15, 7],
+      ['scanner',18, 3], ['scanner',18,11],
+      ['sniper', 21, 7],
+    ]
+  },
+  {
+    name:'ГЛУБОКИЙ ВЗЛОМ', budget:255, mines:3, emp:3, shield:2,
+    turrets:[
+      ['scanner', 3, 2], ['scanner', 3, 7], ['scanner', 3,12],
+      ['flame',   7, 5], ['flame',   7, 9],
+      ['sniper', 10, 7],
+      ['slow',   13, 3], ['slow',   13,11],
+      ['scanner',15, 7],
+      ['sniper', 18, 4], ['sniper', 18,10],
+      ['flame',  21, 7],
+    ]
+  },
+];
+
+/* ---------------- СОСТОЯНИЕ ---------------- */
+
+const state = {
+  phase:'plan',
+  level:0, levelName:'', budget:0,
+  counts:{ tank:0, fast:0, kami:0 },
+  waypoints:[],
+  mines:[],
+  mineMode:false,
+  empArmed:false,
+  empCharges:0, maxEmp:0,
+  shieldCharges:0, maxShield:0,
+  shieldUntil:-1,
+  units:[], turrets:[], projectiles:[], effects:[],
+  spawnQueue:[], breachT:0, t:0,
+};
+
+/* ---------------- УТИЛИТЫ ---------------- */
+
+function hexA(hex, a){
+  const n = parseInt(hex.slice(1),16);
+  return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`;
+}
+function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
+function clamp(v,a,b){ return v<a?a:v>b?b:v; }
+
+function getMouse(e){
+  const r = cv.getBoundingClientRect();
+  return {
+    x: (e.clientX - r.left) * (W / r.width),
+    y: (e.clientY - r.top)  * (H / r.height)
+  };
+}
+
+function currentPath(){
+  return [ENTRY, ...state.waypoints, CORE];
+}
+
+function squadCost(){
+  return ['tank','fast','kami'].reduce((s,k)=> s + state.counts[k]*UNIT_TYPES[k].cost, 0);
+}
+function totalSpent(){
+  return squadCost() + state.mines.length * MINE_COST;
+}
+function unitCount(){
+  return state.counts.tank + state.counts.fast + state.counts.kami;
+}
+
+/* ---------------- ЭФФЕКТЫ ---------------- */
+
+function addRing(x,y,maxR,color,dur){
+  state.effects.push({kind:'ring',x,y,maxR,life:dur,max:dur,color});
+}
+function addBeam(x1,y1,x2,y2,color){
+  state.effects.push({kind:'beam',x1,y1,x2,y2,life:0.13,max:0.13,color});
+}
+function addSpark(x,y,color){
+  state.effects.push({kind:'ring',x,y,maxR:16,life:0.18,max:0.18,color});
+}
+
+/* ---------------- ЗАГРУЗКА УРОВНЯ ---------------- */
+
+function loadLevel(i){
+  const L = LEVELS[i];
+  state.level = i;
+  state.levelName = L.name;
+  state.budget = L.budget;
+
+  state.counts = { tank:0, fast:0, kami:0 };
+  state.waypoints = [];
+  state.mines = [];
+  state.mineMode = false;
+  state.empArmed = false;
+  state.empCharges = state.maxEmp = L.emp;
+  state.shieldCharges = state.maxShield = L.shield;
+  state.shieldUntil = -1;
+
+  state.units = [];
+  state.projectiles = [];
+  state.effects = [];
+  state.spawnQueue = [];
+  state.breachT = 0;
+  state.t = 0;
+
+  state.turrets = L.turrets.map(([type,c,r]) => ({
+    type,
+    x: c*CELL + CELL/2,
+    y: r*CELL + CELL/2,
+    hp: TURRETS[type].hp,
+    maxHp: TURRETS[type].hp,
+    cd: 0, stun: 0, angle: 0, dead: false
+  }));
+
+  state.phase = 'plan';
+  hideOverlay();
+  updateUI();
+}
+
+/* ---------------- ЗАПУСК ---------------- */
+
+function launch(){
+  if(state.phase !== 'plan') return;
+  if(unitCount() === 0) return;
+
+  const path = currentPath().map(p => ({x:p.x, y:p.y}));
+  state.path = path;
+  state.units = [];
+  state.projectiles = [];
+  state.effects = [];
+  state.breachT = 0;
+  state.shieldUntil = -1;
+
+  // порядок спавна: быстрые впереди
+  const types = [];
+  for(const k of ['tank','fast','kami'])
+    for(let i=0;i<state.counts[k];i++) types.push(k);
+  types.sort((a,b)=> UNIT_TYPES[b].speed - UNIT_TYPES[a].speed);
+
+  state.spawnQueue = types.map((type,i)=>({ type, at: i*0.5 }));
+
+  state.phase = 'breach';
+  state.empArmed = false;
+  state.mineMode = false;
+  updateUI();
+}
+
+function spawnUnit(type){
+  const def = UNIT_TYPES[type];
+  state.units.push({
+    type, x:ENTRY.x, y:ENTRY.y,
+    hp:def.hp, maxHp:def.hp, speed:def.speed,
+    radius:def.radius, color:def.color,
+    path: state.path, seg:0,
+    alive:true, reached:false,
+    slowT:0, slowMul:1, angle:0
+  });
+}
+
+/* ---------------- СПОСОБНОСТИ ---------------- */
+
+function useEMP(x,y){
+  if(state.phase !== 'breach' || state.empCharges <= 0) return;
+  state.empCharges--;
+  state.empArmed = false;
+  const R = 145;
+  addRing(x, y, R, '#7dd3fc', 0.55);
+  addRing(x, y, R*0.6, '#e0f7ff', 0.35);
+  for(const t of state.turrets){
+    if(t.dead) continue;
+    if(Math.hypot(t.x-x, t.y-y) <= R) t.stun = Math.max(t.stun, 3);
+  }
+  for(const p of state.projectiles){
+    if(Math.hypot(p.x-x, p.y-y) <= R) p.dead = true;
+  }
+  updateUI();
+}
+
+function useShield(){
+  if(state.phase !== 'breach' || state.shieldCharges <= 0) return;
+  state.shieldCharges--;
+  state.shieldUntil = state.breachT + 3;
+  addRing(ENTRY.x, ENTRY.y, 240, '#a5f3fc', 0.7);
+  for(const u of state.units){
+    if(u.alive) addRing(u.x, u.y, u.radius+22, '#a5f3fc', 0.5);
+  }
+  updateUI();
+}
+
+/* ---------------- УРОН ---------------- */
+
+function damageUnit(u, dmg){
+  if(!u.alive) return;
+  if(state.breachT < state.shieldUntil){
+    addSpark(u.x, u.y, '#a5f3fc');
+    return;
+  }
+  u.hp -= dmg;
+  if(u.hp <= 0) killUnit(u);
+}
+
+function killUnit(u){
+  if(!u.alive) return;
+  u.alive = false;
+  addRing(u.x, u.y, 34, u.color, 0.4);
+
+  if(u.type === 'kami'){
+    const R = 85;
+    addRing(u.x, u.y, R, '#f87171', 0.5);
+    addRing(u.x, u.y, R*0.55, '#fecaca', 0.35);
+    for(const t of state.turrets){
+      if(t.dead) continue;
+      if(Math.hypot(t.x-u.x, t.y-u.y) <= R) damageTurret(t, 140);
+    }
+  }
+}
+
+function damageTurret(t, dmg){
+  if(t.dead) return;
+  t.hp -= dmg;
+  if(t.hp <= 0){
+    t.hp = 0;
+    t.dead = true;
+    addRing(t.x, t.y, 46, TURRETS[t.type].color, 0.55);
+    addRing(t.x, t.y, 26, '#ffffff', 0.3);
+  }
+}
+
+function detonateMine(m){
+  if(m.done) return;
+  m.done = true;
+  const R = 95;
+  addRing(m.x, m.y, R, '#4ade80', 0.5);
+  addRing(m.x, m.y, R*0.5, '#bbf7d0', 0.3);
+  for(const t of state.turrets){
+    if(t.dead) continue;
+    if(Math.hypot(t.x-m.x, t.y-m.y) <= R) damageTurret(t, 170);
+  }
+}
+
+/* ---------------- ОБНОВЛЕНИЕ ---------------- */
+
+function update(dt){
+  state.t += dt;
+
+  // эффекты
+  for(const e of state.effects) e.life -= dt;
+  if(state.effects.length) state.effects = state.effects.filter(e => e.life > 0);
+
+  if(state.phase !== 'breach') return;
+
+  state.breachT += dt;
+  updateSpawn();
+  updateMines();
+  updateUnits(dt);
+  updateTurrets(dt);
+  updateProjectiles(dt);
+  checkEnd();
+}
+
+function updateSpawn(){
+  while(state.spawnQueue.length && state.spawnQueue[0].at <= state.breachT){
+    spawnUnit(state.spawnQueue.shift().type);
+  }
+}
+
+function updateMines(){
+  for(const m of state.mines){
+    if(m.done) continue;
+    for(const u of state.units){
+      if(!u.alive) continue;
+      if(Math.hypot(u.x-m.x, u.y-m.y) < 26){ detonateMine(m); break; }
+    }
+  }
+}
+
+function updateUnits(dt){
+  for(const u of state.units){
+    if(!u.alive) continue;
+
+    if(u.slowT > 0){
+      u.slowT -= dt;
+      if(u.slowT <= 0) u.slowMul = 1;
+    }
+
+    const target = u.path[u.seg + 1];
+    if(!target){ u.alive = false; u.reached = true; continue; }
+
+    const dx = target.x - u.x, dy = target.y - u.y;
+    const d  = Math.hypot(dx, dy);
+    const step = u.speed * u.slowMul * dt;
+
+    if(d <= step){
+      u.x = target.x; u.y = target.y;
+      u.seg++;
+      if(u.seg >= u.path.length - 1){
+        u.alive = false;
+        u.reached = true;
+        addRing(CORE.x, CORE.y, 90, '#4ade80', 0.7);
+      }
+    } else {
+      u.x += dx/d * step;
+      u.y += dy/d * step;
+      u.angle = Math.atan2(dy, dx);
+    }
+  }
+}
+
+function updateTurrets(dt){
+  for(const t of state.turrets){
+    if(t.dead) continue;
+    const def = TURRETS[t.type];
+
+    if(t.stun > 0){
+      t.stun -= dt;
+      if(t.stun < 0) t.stun = 0;
+      continue;
+    }
+
+    // Глушитель — аура замедления
+    if(def.slow){
+      for(const u of state.units){
+        if(!u.alive) continue;
+        if(Math.hypot(u.x-t.x, u.y-t.y) <= def.range){
+          u.slowT = 0.2;
+          u.slowMul = 0.55;
+        }
+      }
+      t.angle += dt * 1.6;
+      continue;
+    }
+
+    t.cd -= dt;
+
+    // поиск ближайшей цели
+    let best = null, bd = Infinity;
+    for(const u of state.units){
+      if(!u.alive) continue;
+      const d = Math.hypot(u.x-t.x, u.y-t.y);
+      if(d <= def.range && d < bd){ bd = d; best = u; }
+    }
+
+    if(best){
+      t.angle = Math.atan2(best.y - t.y, best.x - t.x);
+      if(t.cd <= 0){
+        t.cd = 1 / def.rate;
+        fire(t, best, def);
+      }
+    } else {
+      t.angle += dt * 1.1;
+      if(t.cd < 0) t.cd = 0;
+    }
+  }
+}
+
+function fire(t, target, def){
+  if(def.hitscan){
+    damageUnit(target, def.dmg);
+    addBeam(t.x, t.y, target.x, target.y, def.color);
+  } else {
+    state.projectiles.push({
+      x:t.x, y:t.y,
+      tx:target.x, ty:target.y,
+      target, speed:def.pspd, dmg:def.dmg,
+      color:def.color, life:3, dead:false
+    });
+  }
+}
+
+function updateProjectiles(dt){
+  for(const p of state.projectiles){
+    if(p.dead) continue;
+    p.life -= dt;
+    if(p.life <= 0){ p.dead = true; continue; }
+
+    if(p.target && p.target.alive){
+      p.tx = p.target.x;
+      p.ty = p.target.y;
+    }
+
+    const dx = p.tx - p.x, dy = p.ty - p.y;
+    const d = Math.hypot(dx, dy);
+    const step = p.speed * dt;
+
+    if(d <= step){
+      if(p.target && p.target.alive) damageUnit(p.target, p.dmg);
+      addSpark(p.tx, p.ty, p.color);
+      p.dead = true;
+    } else {
+      p.x += dx/d * step;
+      p.y += dy/d * step;
+    }
+  }
+  if(state.projectiles.length)
+    state.projectiles = state.projectiles.filter(p => !p.dead);
+}
+
+function checkEnd(){
+  if(state.units.some(u => u.reached)){ winLevel(); return; }
+  const alive = state.units.filter(u => u.alive).length;
+  if(alive === 0 && state.spawnQueue.length === 0 && state.breachT > 0.3){
+    loseLevel();
+  }
+}
+
+/* ---------------- КОНЕЦ УРОВНЯ ---------------- */
+
+function winLevel(){
+  if(state.phase !== 'breach') return;
+  state.phase = 'win';
+  const last = state.level >= LEVELS.length - 1;
+  showOverlay(
+    'ВНЕДРЕНИЕ УСПЕШНО',
+    `Пакет данных достиг ядра сети. Уровень «${state.levelName}» взломан.`,
+    last ? 'ИГРА ПРОЙДЕНА' : 'СЛЕДУЮЩИЙ УРОВЕНЬ',
+    last ? () => loadLevel(0) : () => loadLevel(state.level + 1),
+    'ПОВТОРИТЬ',
+    () => loadLevel(state.level),
+    false
+  );
+  updateUI();
+}
+
+function loseLevel(){
+  if(state.phase !== 'breach') return;
+  state.phase = 'lose';
+  showOverlay(
+    'ОБНАРУЖЕН И УНИЧТОЖЕН',
+    'Все пакеты данных отряда ликвидированы антивирусной защитой. Измените маршрут или состав отряда.',
+    'ПОВТОРИТЬ',
+    () => loadLevel(state.level),
+    'С ПЕРВОГО УРОВНЯ',
+    () => loadLevel(0),
+    true
+  );
+  updateUI();
+}
+
+/* ---------------- ОВЕРЛЕЙ ---------------- */
+
+const overlay = document.getElementById('overlay');
+const ovTitle = document.getElementById('ovTitle');
+const ovText  = document.getElementById('ovText');
+const ovBtn1  = document.getElementById('ovBtn1');
+const ovBtn2  = document.getElementById('ovBtn2');
+
+function showOverlay(title, text, b1, f1, b2, f2, lose){
+  ovTitle.textContent = title;
+  ovTitle.classList.toggle('lose', !!lose);
+  ovText.textContent = text;
+  ovBtn1.textContent = b1;
+  ovBtn2.textContent = b2;
+  ovBtn1.className = lose ? '' : 'primary';
+  ovBtn1.onclick = f1;
+  ovBtn2.onclick = f2;
+  overlay.classList.remove('hidden');
+}
+function hideOverlay(){ overlay.classList.add('hidden'); }
+
+/* ---------------- БРИФИНГ ---------------- */
+
+const intro     = document.getElementById('intro');
+const slides    = Array.from(document.querySelectorAll('.slide'));
+const dots      = Array.from(document.querySelectorAll('.dot'));
+const introNext = document.getElementById('introNext');
+const introPrev = document.getElementById('introPrev');
+const introSkip = document.getElementById('introSkip');
+let slideI = 0;
+
+function showSlide(i){
+  slideI = clamp(i, 0, slides.length - 1);
+  slides.forEach((s,k)=> s.classList.toggle('active', k === slideI));
+  dots.forEach((d,k)=> d.classList.toggle('on', k === slideI));
+  introPrev.disabled = slideI === 0;
+  introNext.textContent = slideI === slides.length - 1 ? 'Начать' : 'Далее';
+}
+
+function openIntro(){
+  slideI = 0;
+  showSlide(0);
+  intro.classList.remove('hidden');
+}
+function closeIntro(){
+  intro.classList.add('hidden');
+}
+
+introNext.addEventListener('click', ()=>{
+  if(slideI === slides.length - 1) closeIntro();
+  else showSlide(slideI + 1);
+});
+introPrev.addEventListener('click', ()=> showSlide(slideI - 1));
+introSkip.addEventListener('click', closeIntro);
+dots.forEach(d => d.addEventListener('click', ()=> showSlide(+d.dataset.i)));
+document.getElementById('btnHelp').addEventListener('click', openIntro);
+
+/* ---------------- ОТРИСОВКА ---------------- */
+
+function render(){
+  ctx.clearRect(0,0,W,H);
+
+  // фон
+  const bg = ctx.createLinearGradient(0,0,W,H);
+  bg.addColorStop(0,'#04070e');
+  bg.addColorStop(0.5,'#060c17');
+  bg.addColorStop(1,'#04070e');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0,0,W,H);
+
+  drawGrid();
+  drawZones();
+  drawTurretRanges();
+  drawTurrets();
+  drawPath();
+  drawMines();
+  drawProjectiles();
+  drawUnits();
+  drawEffects();
+  drawHud();
+}
+
+function drawGrid(){
+  ctx.save();
+  ctx.strokeStyle = '#0d1a2b';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for(let c=1;c<COLS;c++){ ctx.moveTo(c*CELL+.5,0); ctx.lineTo(c*CELL+.5,H); }
+  for(let r=1;r<ROWS;r++){ ctx.moveTo(0,r*CELL+.5); ctx.lineTo(W,r*CELL+.5); }
+  ctx.stroke();
+
+  const g = ctx.createRadialGradient(W/2,H/2,40,W/2,H/2,W*0.72);
+  g.addColorStop(0,'rgba(20,70,120,0.10)');
+  g.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0,0,W,H);
+  ctx.restore();
+}
+
+function drawZones(){
+  const pulse = 0.5 + Math.sin(state.t*3)*0.5;
+
+  // ВХОД
+  ctx.save();
+  ctx.strokeStyle = '#22d3ee';
+  ctx.lineWidth = 3;
+  ctx.shadowColor = '#22d3ee';
+  ctx.shadowBlur = 16;
+  ctx.beginPath();
+  ctx.moveTo(4, ENTRY.y-46);
+  ctx.lineTo(4, ENTRY.y+46);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.globalAlpha = 0.25 + pulse*0.25;
+  ctx.fillStyle = '#22d3ee';
+  ctx.fillRect(4, ENTRY.y-46, 3, 92);
+  ctx.restore();
+
+  ctx.save();
+  ctx.font = 'bold 10px ui-monospace, monospace';
+  ctx.fillStyle = 'rgba(34,211,238,.55)';
+  ctx.textAlign = 'left';
+  ctx.fillText('ВХОД', 12, ENTRY.y - 56);
+  ctx.restore();
+
+  // ЯДРО
+  ctx.save();
+  ctx.translate(CORE.x, CORE.y);
+  const s = 15 + pulse*2.5;
+  ctx.shadowColor = '#4ade80';
+  ctx.shadowBlur = 26;
+  ctx.strokeStyle = '#4ade80';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(0,-s); ctx.lineTo(s,0); ctx.lineTo(0,s); ctx.lineTo(-s,0);
+  ctx.closePath();
+  ctx.stroke();
+  ctx.globalAlpha = 0.35 + pulse*0.3;
+  ctx.fillStyle = '#4ade80';
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.shadowBlur = 0;
+  ctx.beginPath();
+  ctx.arc(0,0, 22 + pulse*8, 0, Math.PI*2);
+  ctx.strokeStyle = 'rgba(74,222,128,.25)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.save();
+  ctx.font = 'bold 10px ui-monospace, monospace';
+  ctx.fillStyle = 'rgba(74,222,128,.6)';
+  ctx.textAlign = 'right';
+  ctx.fillText('ЯДРО', W-10, CORE.y - 42);
+  ctx.restore();
+}
+
+function drawTurretRanges(){
+  for(const t of state.turrets){
+    if(t.dead) continue;
+    const def = TURRETS[t.type];
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(t.x, t.y, def.range, 0, Math.PI*2);
+    ctx.fillStyle = hexA(def.color, 0.045);
+    ctx.fill();
+    ctx.strokeStyle = hexA(def.color, 0.16);
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4,8]);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+function drawTurret(t){
+  const def = TURRETS[t.type];
+  const stunned = t.stun > 0;
+  const col = stunned ? '#64748b' : def.color;
+
+  ctx.save();
+  ctx.translate(t.x, t.y);
+
+  // корпус
+  ctx.shadowColor = def.color;
+  ctx.shadowBlur = stunned ? 3 : 14;
+  ctx.fillStyle = '#0b1420';
+  ctx.strokeStyle = col;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for(let i=0;i<6;i++){
+    const a = i*Math.PI/3 - Math.PI/6;
+    const px = Math.cos(a)*def.r, py = Math.sin(a)*def.r;
+    i ? ctx.lineTo(px,py) : ctx.moveTo(px,py);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // ствол
+  ctx.shadowBlur = 0;
+  ctx.rotate(t.angle);
+  ctx.strokeStyle = hexA(def.color, stunned ? 0.3 : 0.9);
+  ctx.lineWidth = 2.4;
+  ctx.beginPath();
+  ctx.moveTo(0,0);
+  ctx.lineTo(def.r*0.85, 0);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(0,0, def.r*0.4, 0, Math.PI*2);
+  ctx.strokeStyle = hexA(def.color, stunned ? 0.25 : 0.7);
+  ctx.lineWidth = 1.6;
+  ctx.stroke();
+  ctx.restore();
+
+  // HP
+  if(t.hp < t.maxHp){
+    const w = 28;
+    const y = t.y - def.r - 10;
+    ctx.fillStyle = 'rgba(0,0,0,.65)';
+    ctx.fillRect(t.x-w/2, y, w, 4);
+    ctx.fillStyle = def.color;
+    ctx.fillRect(t.x-w/2, y, w*(t.hp/t.maxHp), 4);
+    ctx.strokeStyle = 'rgba(255,255,255,.14)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(t.x-w/2+.5, y+.5, w-1, 3);
+  }
+
+  // оглушение
+  if(stunned){
+    ctx.save();
+    ctx.globalAlpha = 0.45 + Math.sin(state.t*22)*0.35;
+    ctx.strokeStyle = '#7dd3fc';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(t.x, t.y, def.r + 7, 0, Math.PI*2);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+function drawTurrets(){
+  for(const t of state.turrets) if(!t.dead) drawTurret(t);
+}
+
+function drawPath(){
+  const pts = currentPath();
+  if(pts.length < 2) return;
+
+  const breach = state.phase === 'breach';
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x, pts[i].y);
+
+  ctx.strokeStyle = breach ? 'rgba(125,211,252,.30)' : 'rgba(125,211,252,.45)';
+  ctx.lineWidth = 8;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+
+  ctx.strokeStyle = breach ? '#67e8f9' : '#38bdf8';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([10, 9]);
+  ctx.lineDashOffset = breach ? -state.t*55 : 0;
+  ctx.shadowColor = '#22d3ee';
+  ctx.shadowBlur = 12;
+  ctx.stroke();
+  ctx.restore();
+
+  // точки маршрута
+  if(!breach){
+    pts.forEach((p, i) => {
+      if(i === 0 || i === pts.length-1) return;
+      ctx.save();
+      ctx.shadowColor = '#38bdf8';
+      ctx.shadowBlur = 12;
+      ctx.fillStyle = '#0b1a2a';
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 6, 0, Math.PI*2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#7dd3fc';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 2, 0, Math.PI*2);
+      ctx.fill();
+      ctx.restore();
+    });
+  }
+}
+
+function drawMines(){
+  for(const m of state.mines){
+    if(m.done) continue;
+    const pulse = 0.5 + Math.sin(state.t*4 + m.x)*0.5;
+    ctx.save();
+    ctx.translate(m.x, m.y);
+    ctx.shadowColor = '#4ade80';
+    ctx.shadowBlur = 14;
+    ctx.strokeStyle = '#4ade80';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0,-8); ctx.lineTo(8,0); ctx.lineTo(0,8); ctx.lineTo(-8,0);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.globalAlpha = 0.3 + pulse*0.4;
+    ctx.fillStyle = '#4ade80';
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 0;
+    ctx.beginPath();
+    ctx.arc(0,0, 15 + pulse*5, 0, Math.PI*2);
+    ctx.strokeStyle = 'rgba(74,222,128,.22)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+function drawUnits(){
+  const shielded = state.breachT < state.shieldUntil;
+
+  for(const u of state.units){
+    if(!u.alive) continue;
+    const def = UNIT_TYPES[u.type];
+
+    // шлейф
+    ctx.save();
+    ctx.globalAlpha = 0.18;
+    ctx.fillStyle = def.color;
+    ctx.beginPath();
+    ctx.arc(u.x - Math.cos(u.angle)*10, u.y - Math.sin(u.angle)*10, def.radius*0.8, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+
+    // тело
+    ctx.save();
+    ctx.shadowColor = def.color;
+    ctx.shadowBlur = 14;
+    ctx.fillStyle = def.color;
+    ctx.beginPath();
+    ctx.arc(u.x, u.y, def.radius, 0, Math.PI*2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgba(2,8,16,.55)';
+    ctx.beginPath();
+    ctx.arc(u.x, u.y, def.radius*0.45, 0, Math.PI*2);
+    ctx.fill();
+
+    if(shielded){
+      ctx.strokeStyle = '#a5f3fc';
+      ctx.lineWidth = 2;
+      ctx.globalAlpha = 0.55 + Math.sin(state.t*10)*0.25;
+      ctx.beginPath();
+      ctx.arc(u.x, u.y, def.radius + 6, 0, Math.PI*2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+    if(u.slowT > 0){
+      ctx.strokeStyle = '#facc15';
+      ctx.globalAlpha = 0.6;
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.arc(u.x, u.y, def.radius + 3, 0, Math.PI*2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+    ctx.restore();
+
+    // HP
+    const w = 24;
+    const hp = clamp(u.hp/u.maxHp, 0, 1);
+    const y = u.y - def.radius - 11;
+    ctx.fillStyle = 'rgba(0,0,0,.7)';
+    ctx.fillRect(u.x-w/2, y, w, 3.5);
+    ctx.fillStyle = hp > 0.5 ? '#4ade80' : hp > 0.25 ? '#facc15' : '#f87171';
+    ctx.fillRect(u.x-w/2, y, w*hp, 3.5);
+  }
+}
+
+function drawProjectiles(){
+  for(const p of state.projectiles){
+    ctx.save();
+    ctx.shadowColor = p.color;
+    ctx.shadowBlur = 12;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 3.4, 0, Math.PI*2);
+    ctx.fill();
+    ctx.globalAlpha = 0.35;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 6.5, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+function drawEffects(){
+  for(const e of state.effects){
+    const p = 1 - e.life / e.max;
+
+    if(e.kind === 'ring'){
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, 1 - p);
+      ctx.strokeStyle = e.color;
+      ctx.lineWidth = 3.5*(1-p) + 0.8;
+      ctx.shadowColor = e.color;
+      ctx.shadowBlur = 14;
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, e.maxR * p, 0, Math.PI*2);
+      ctx.stroke();
+      ctx.restore();
+    } else if(e.kind === 'beam'){
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, e.life / e.max);
+      ctx.strokeStyle = e.color;
+      ctx.lineWidth = 3;
+      ctx.shadowColor = e.color;
+      ctx.shadowBlur = 18;
+      ctx.beginPath();
+      ctx.moveTo(e.x1, e.y1);
+      ctx.lineTo(e.x2, e.y2);
+      ctx.stroke();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+}
+
+function drawHud(){
+  ctx.save();
+  ctx.font = 'bold 11px ui-monospace, monospace';
+
+  if(state.phase === 'plan'){
+    ctx.fillStyle = 'rgba(125,211,252,.75)';
+    ctx.textAlign = 'left';
+    const txt = state.mineMode
+      ? 'РЕЖИМ МИНЫ · ЛКМ — установить имплант'
+      : 'ФАЗА ПЛАНИРОВАНИЯ · ЛКМ — точка маршрута';
+    ctx.fillText(txt, 16, 24);
+
+    ctx.fillStyle = 'rgba(125,211,252,.35)';
+    ctx.fillText(`ТОЧЕК МАРШРУТА: ${state.waypoints.length}`, 16, 42);
+  }
+
+  if(state.phase === 'breach'){
+    ctx.fillStyle = 'rgba(248,113,113,.85)';
+    ctx.textAlign = 'left';
+    ctx.fillText('⚡ ВНЕДРЕНИЕ АКТИВНО', 16, 24);
+
+    ctx.fillStyle = 'rgba(125,211,252,.6)';
+    ctx.fillText(`ЦЕЛОСТНОСТЬ: ${state.units.filter(u=>u.alive).length} / ${unitCount()}`, 16, 42);
+  }
+
+  ctx.restore();
+}
+
+/* ---------------- UI ---------------- */
+
+const squadList = document.getElementById('squadList');
+const budgetInfo = document.getElementById('budgetInfo');
+const levelNameEl = document.getElementById('levelName');
+const btnLaunch = document.getElementById('btnLaunch');
+const btnReset = document.getElementById('btnReset');
+const btnMine = document.getElementById('btnMine');
+const btnEmp = document.getElementById('btnEmp');
+const btnShield = document.getElementById('btnShield');
+const empCnt = document.getElementById('empCnt');
+const shCnt = document.getElementById('shCnt');
+
+// строки отряда
+for(const key of ['tank','fast','kami']){
+  const def = UNIT_TYPES[key];
+  const row = document.createElement('div');
+  row.className = 'unitRow';
+  row.innerHTML = `
+    <div class="uDot" style="background:${def.color};box-shadow:0 0 8px ${def.color}"></div>
+    <div>
+      <div class="uName">${def.name}</div>
+      <div class="uStats">HP ${def.hp} · Скор ${def.speed} · ${def.desc}</div>
+    </div>
+    <div class="uCtrl">
+      <button data-act="minus" data-key="${key}">−</button>
+      <span id="cnt-${key}">0</span>
+      <button data-act="plus" data-key="${key}">+</button>
+    </div>
+  `;
+  squadList.appendChild(row);
+}
+
+// легенда турелей
+const legend = document.getElementById('legend');
+for(const k of ['scanner','flame','sniper','slow']){
+  const d = TURRETS[k];
+  const row = document.createElement('div');
+  row.className = 'lgRow';
+  const dps = d.slow ? 'замедление' : `DPS ${(d.dmg*d.rate).toFixed(1)}`;
+  row.innerHTML = `
+    <div class="lgDot" style="background:${d.color};box-shadow:0 0 8px ${d.color}"></div>
+    <span><b style="color:${d.color}">${d.name}</b> · дальность ${d.range} · ${dps}</span>
+  `;
+  legend.appendChild(row);
+}
+
+squadList.addEventListener('click', (e)=>{
+  const btn = e.target.closest('button');
+  if(!btn || state.phase !== 'plan') return;
+  const key = btn.dataset.key;
+  const act = btn.dataset.act;
+
+  if(act === 'plus'){
+    if(totalSpent() + UNIT_TYPES[key].cost <= state.budget){
+      state.counts[key]++;
+    }
+  } else {
+    if(state.counts[key] > 0) state.counts[key]--;
+  }
+  updateUI();
+});
+
+btnMine.addEventListener('click', ()=>{
+  if(state.phase !== 'plan') return;
+  state.mineMode = !state.mineMode;
+  updateUI();
+});
+
+btnLaunch.addEventListener('click', launch);
+
+btnReset.addEventListener('click', ()=>{
+  loadLevel(state.level);
+});
+
+btnEmp.addEventListener('click', ()=>{
+  if(state.phase !== 'breach' || state.empCharges <= 0) return;
+  state.empArmed = !state.empArmed;
+  updateUI();
+});
+
+btnShield.addEventListener('click', useShield);
+
+function updateUI(){
+  const spent = totalSpent();
+  const total = unitCount();
+
+  levelNameEl.textContent = `УРОВЕНЬ ${state.level+1} — ${state.levelName}`;
+  budgetInfo.innerHTML = `БИТЫ: <b>${spent}</b> / ${state.budget}` +
+    (state.phase === 'plan' && state.mines.length
+      ? ` · мин: ${state.mines.length}` : '');
+
+  for(const k of ['tank','fast','kami']){
+    document.getElementById('cnt-'+k).textContent = state.counts[k];
+  }
+
+  btnLaunch.disabled = !(state.phase === 'plan' && total > 0);
+  btnMine.disabled = state.phase !== 'plan';
+  btnMine.classList.toggle('big', true);
+  btnMine.textContent = state.mineMode
+    ? '⊗ Отмена установки мины'
+    : `⊕ Имплант-мина · ${MINE_COST}Б`;
+  btnMine.style.borderColor = state.mineMode ? '#4ade80' : '';
+  btnMine.style.color = state.mineMode ? '#4ade80' : '';
+
+  empCnt.textContent = '×' + state.empCharges;
+  shCnt.textContent  = '×' + state.shieldCharges;
+
+  btnEmp.disabled = !(state.phase === 'breach' && state.empCharges > 0);
+  btnShield.disabled = !(state.phase === 'breach' && state.shieldCharges > 0);
+  btnEmp.classList.toggle('armed', state.empArmed);
+
+  cv.classList.toggle('mineMode', state.mineMode && state.phase === 'plan');
+  cv.classList.toggle('empArmed', state.empArmed && state.phase === 'breach');
+}
+
+/* ---------------- ВВОД ---------------- */
+
+cv.addEventListener('mousedown', (e)=>{
+  if(e.button !== 0) return;
+  const m = getMouse(e);
+
+  if(state.phase === 'plan'){
+    if(state.mineMode){
+      if(totalSpent() + MINE_COST <= state.budget){
+        state.mines.push({ x:m.x, y:m.y, done:false });
+        updateUI();
+      }
+    } else {
+      state.waypoints.push({ x:m.x, y:m.y });
+      updateUI();
+    }
+    return;
+  }
+
+  if(state.phase === 'breach' && state.empArmed){
+    useEMP(m.x, m.y);
+  }
+});
+
+cv.addEventListener('contextmenu', (e)=>{
+  e.preventDefault();
+  if(state.phase !== 'plan') return;
+  const m = getMouse(e);
+
+  // сначала пробуем удалить мину
+  let idx = -1;
+  for(let i=state.mines.length-1;i>=0;i--){
+    if(Math.hypot(state.mines[i].x-m.x, state.mines[i].y-m.y) < 20){ idx = i; break; }
+  }
+  if(idx >= 0){
+    state.mines.splice(idx,1);
+    updateUI();
+    return;
+  }
+  state.waypoints.pop();
+  updateUI();
+});
+
+/* --- подсказка при наведении --- */
+const tip = document.getElementById('tip');
+cv.addEventListener('mousemove', (e)=>{
+  const m = getMouse(e);
+  let found = null;
+  for(const t of state.turrets){
+    if(t.dead) continue;
+    if(Math.hypot(t.x-m.x, t.y-m.y) <= TURRETS[t.type].r + 6){ found = t; break; }
+  }
+
+  if(found){
+    const d = TURRETS[found.type];
+    const dps = d.slow ? '—' : (d.dmg*d.rate).toFixed(1);
+    tip.innerHTML =
+      `<b style="color:${d.color}">${d.name}</b><br>` +
+      `HP <span class="c">${Math.ceil(found.hp)}/${d.hp}</span><br>` +
+      `Урон <span class="c">${d.dmg}</span> · DPS <span class="c">${dps}</span><br>` +
+      `Дальность <span class="c">${d.range}</span>` +
+      (found.stun > 0 ? `<br><span style="color:#7dd3fc">ОГЛУШЕН ${found.stun.toFixed(1)}с</span>` : '');
+    tip.style.display = 'block';
+    tip.style.left = (e.clientX + 16) + 'px';
+    tip.style.top  = (e.clientY + 16) + 'px';
+    cv.style.cursor = 'help';
+  } else {
+    tip.style.display = 'none';
+    cv.style.cursor = state.phase === 'plan'
+      ? (state.mineMode ? 'cell' : 'crosshair')
+      : (state.empArmed ? 'crosshair' : 'default');
+  }
+});
+cv.addEventListener('mouseleave', ()=>{ tip.style.display = 'none'; });
+
+/* --- клавиатура --- */
+window.addEventListener('keydown', (e)=>{
+  // Пока открыт брифинг — работает только навигация по нему
+  if(!intro.classList.contains('hidden')){
+    if(e.key === 'Escape') closeIntro();
+    else if(e.key === 'ArrowRight') showSlide(slideI + 1);
+    else if(e.key === 'ArrowLeft') showSlide(slideI - 1);
+    return;
+  }
+
+  if(e.code === 'Space'){
+    e.preventDefault();
+    if(state.phase === 'plan') launch();
+  }
+  if(e.key === '1'){
+    if(state.phase === 'breach' && state.empCharges > 0){
+      state.empArmed = !state.empArmed;
+      updateUI();
+    }
+  }
+  if(e.key === '2'){
+    useShield();
+  }
+  if(e.key === 'r' || e.key === 'R' || e.key === 'к' || e.key === 'К'){
+    if(state.phase === 'plan'){
+      state.waypoints = [];
+      updateUI();
+    }
+  }
+  if(e.key === 'Escape'){
+    if(state.empArmed){ state.empArmed = false; updateUI(); }
+    if(state.mineMode){ state.mineMode = false; updateUI(); }
+  }
+});
+
+/* ---------------- ЦИКЛ ---------------- */
+
+let last = 0;
+function loop(ts){
+  if(!last) last = ts;
+  let dt = (ts - last) / 1000;
+  last = ts;
+  dt = Math.min(dt, 0.05);
+
+  update(dt);
+  render();
+
+  requestAnimationFrame(loop);
+}
+
+/* ---------------- СТАРТ ---------------- */
+
+loadLevel(0);
+showSlide(0);   // брифинг открыт по умолчанию (виден в HTML)
+requestAnimationFrame(loop);
+</script>
+
+<script>
+  // Запоминаем, какую игру нужно оценить после возврата
+  document.getElementById('backToMain').addEventListener('click', function () {
+    try { localStorage.setItem('genrelab_pending', '6'); } catch (e) {}
+  });
+</script>
+
+</body>
+</html>

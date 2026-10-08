@@ -1,0 +1,1538 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Wreck-Ball Golf</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: #05080e;
+    color: #e8eef8;
+    font-family: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+    min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    overflow-x: hidden;
+  }
+  #wrap {
+    position: relative;
+    width: min(97vw, 1000px);
+    padding: 8px 0 0;
+  }
+  #topbar {
+    display: flex; gap: 8px; flex-wrap: wrap;
+    margin-bottom: 8px;
+  }
+  .pill {
+    flex: 1 1 0;
+    min-width: 90px;
+    background: linear-gradient(180deg, #131c2b, #0d141f);
+    border: 1px solid #22304a;
+    border-radius: 10px;
+    padding: 7px 12px;
+    display: flex; flex-direction: column;
+    box-shadow: 0 3px 12px rgba(0,0,0,.5);
+  }
+  .pill .lbl {
+    font-size: 10px; letter-spacing: 1.2px; text-transform: uppercase;
+    color: #6c82a6; font-weight: 700;
+  }
+  .pill .val { font-size: 19px; font-weight: 800; line-height: 1.15; color: #dfeaff; }
+  .pill.acc .val { color: #ffce4d; }
+  .pill.help {
+    flex: 0 0 auto;
+    cursor: pointer;
+    align-items: center; justify-content: center;
+    padding: 7px 14px;
+    background: linear-gradient(180deg, #1d2b42, #131c2b);
+    transition: background .15s;
+  }
+  .pill.help:hover { background: linear-gradient(180deg, #2a3d5c, #1a2638); }
+  .pill.help .val { font-size: 22px; color: #5ec8ff; }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 14px;
+    border: 1px solid #1c2739;
+    box-shadow: 0 12px 44px rgba(0,0,0,.75), inset 0 0 60px rgba(0,0,0,.6);
+    touch-action: none;
+    cursor: crosshair;
+  }
+
+  #goalbar {
+    margin-top: 8px;
+    background: linear-gradient(90deg, #10202e, #0d141f 70%);
+    border: 1px solid #1d3a4a;
+    border-left: 3px solid #35c8ff;
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 13px;
+    color: #9fd4ee;
+    display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  }
+  #goalbar b { color: #ffce4d; }
+
+  /* ---------- Modal ---------- */
+  #modal {
+    position: absolute; inset: 0;
+    background: rgba(3,6,12,.82);
+    backdrop-filter: blur(6px);
+    border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    z-index: 20;
+    padding: 20px;
+    overflow-y: auto;
+  }
+  #modal.hidden { display: none; }
+  .card {
+    background: linear-gradient(180deg, #16202f, #0c121c);
+    border: 1px solid #2b3d5c;
+    border-radius: 16px;
+    padding: 26px 30px;
+    max-width: 560px; width: 100%;
+    text-align: center;
+    box-shadow: 0 20px 60px rgba(0,0,0,.8);
+    animation: pop .25s ease-out;
+    max-height: 92vh;
+    overflow-y: auto;
+  }
+  @keyframes pop { from { transform: scale(.9); opacity: 0 } to { transform: scale(1); opacity: 1 } }
+  .card h1 {
+    margin: 0 0 4px; font-size: 27px; letter-spacing: .5px;
+    background: linear-gradient(90deg, #ffce4d, #ff7a4d);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .card .sub { color: #7c93b5; font-size: 13px; margin-bottom: 18px; }
+  .rows { text-align: left; margin: 0 0 18px; font-size: 14px; }
+  .row { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px dashed #23324a; }
+  .row:last-child { border-bottom: none; }
+  .row .k { color: #8299ba; }
+  .row .v { font-weight: 800; color: #dfeaff; }
+  .row.total { border-top: 1px solid #2b3d5c; margin-top: 6px; padding-top: 12px; }
+  .row.total .k { color: #ffce4d; font-weight: 700; font-size: 15px; }
+  .row.total .v { color: #ffce4d; font-size: 22px; }
+  .row.bonus .v { color: #5ef2a0; }
+  .row.fail .v { color: #ff6b7a; }
+
+  button {
+    font-family: inherit; font-size: 15px; font-weight: 800;
+    letter-spacing: .5px;
+    padding: 12px 26px; margin: 4px 5px 0;
+    border-radius: 10px; border: none; cursor: pointer;
+    background: linear-gradient(180deg, #ffd45e, #f2a11c);
+    color: #21160a;
+    box-shadow: 0 5px 0 #a86d09, 0 8px 20px rgba(242,161,28,.35);
+    transition: transform .08s, box-shadow .08s;
+  }
+  button:active { transform: translateY(3px); box-shadow: 0 2px 0 #a86d09; }
+  button.ghost {
+    background: linear-gradient(180deg, #2a3a52, #1a2537);
+    color: #b9cbe6;
+    box-shadow: 0 5px 0 #0e1520, 0 8px 20px rgba(0,0,0,.4);
+  }
+  button.ghost:active { box-shadow: 0 2px 0 #0e1520; }
+
+  /* ---------- Инструкция ---------- */
+  .instr {
+    text-align: left;
+    margin: 6px 0 16px;
+  }
+  .instr .step {
+    display: flex; gap: 14px;
+    padding: 11px 0;
+    border-bottom: 1px dashed #23324a;
+  }
+  .instr .step:last-child { border-bottom: none; }
+  .instr .num {
+    flex: 0 0 34px; height: 34px;
+    border-radius: 50%;
+    background: linear-gradient(180deg, #35c8ff, #1f7fbf);
+    color: #06121c;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 900; font-size: 16px;
+    box-shadow: 0 3px 0 #12567f;
+  }
+  .instr .step .txt { flex: 1; }
+  .instr .step .ttl {
+    font-weight: 800; font-size: 15px; color: #dfeaff;
+    margin-bottom: 2px;
+  }
+  .instr .step .dsc {
+    font-size: 13px; color: #8ba3c4; line-height: 1.45;
+  }
+  .instr .step .dsc b { color: #ffce4d; }
+
+  .legend {
+    text-align: left;
+    background: rgba(20,32,48,.55);
+    border: 1px solid #22304a;
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin: 6px 0 16px;
+  }
+  .legend .lt {
+    font-size: 11px; letter-spacing: 1.2px; text-transform: uppercase;
+    color: #6c82a6; font-weight: 700;
+    margin-bottom: 8px;
+  }
+  .legend .lg-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 7px 14px;
+    font-size: 12.5px;
+  }
+  .legend .item { display: flex; align-items: center; gap: 8px; }
+  .legend .dot {
+    width: 13px; height: 13px; border-radius: 3px; flex: 0 0 auto;
+    border: 1px solid rgba(0,0,0,.5);
+  }
+  .legend .item span { color: #b9cbe6; }
+  .legend .item i { font-style: normal; color: #ffce4d; font-weight: 800; margin-left: auto; }
+
+  /* Кнопка «На главную» */
+.back-to-main {
+  position: fixed;
+  top: 14px;
+  left: 14px;
+  z-index: 9999;
+  padding: 9px 16px;
+  font-family: 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .3px;
+  color: #e8e8f0;
+  background: rgba(12, 12, 20, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  text-decoration: none;
+  backdrop-filter: blur(6px);
+  transition: background .15s, border-color .15s, transform .15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.back-to-main:hover {
+  background: rgba(30, 30, 45, 0.95);
+  border-color: rgba(255, 215, 94, 0.55);
+  color: #ffd75e;
+  transform: translateY(-1px);
+}
+.back-to-main:active {
+  transform: translateY(1px);
+}
+
+</style>
+</head>
+<body>
+
+<a href="../index.html" id="backToMain" class="back-to-main">← На главную</a>
+
+<div id="wrap">
+  <div id="topbar">
+    <div class="pill"><span class="lbl">Уровень</span><span class="val" id="hud-level">1</span></div>
+    <div class="pill acc"><span class="lbl">Очки</span><span class="val" id="hud-score">0</span></div>
+    <div class="pill"><span class="lbl">Удары</span><span class="val" id="hud-strokes">0</span></div>
+    <div class="pill"><span class="lbl">Разрушено</span><span class="val" id="hud-destroyed">0</span></div>
+    <div class="pill help" id="help-btn" title="Как играть"><span class="val">?</span></div>
+  </div>
+
+  <canvas id="cv"></canvas>
+
+  <div id="goalbar">
+    <span id="goal-text">Цель: —</span>
+    <span id="goal-hint" style="color:#54708f">Тяни мышью ОТ мяча и отпусти — как рогатку</span>
+  </div>
+
+  <div id="modal" class="hidden">
+    <div class="card" id="modal-card"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/matter-js@0.19.0/build/matter.min.js"></script>
+<script>
+/* ============================================================
+   WRECK-BALL GOLF
+   Физика: Matter.js  |  Рендер: Canvas 2D
+   ============================================================ */
+const { Engine, World, Bodies, Body, Composite, Events, Vector } = Matter;
+
+/* ---------------- Константы ---------------- */
+const W = 1000, H = 640;
+const SUBSTEPS = 2;
+const DT = (1000 / 60) / SUBSTEPS;
+const MAX_SPEED = 24;
+const MAX_PULL  = 230;
+const BALL_R    = 14;
+const HOLE_R    = 30;
+
+/* ---------------- Типы объектов ---------------- */
+const TYPES = {
+  glass: {
+    hp: 10, score: 50, w: 18, h: 92, density: 0.0006,
+    friction: 0.05, restitution: 0.35, frictionAir: 0.04,
+    col: '#7fd8ff', dark: '#2b7fa8', particle: '#a8e8ff', name: 'Стекло'
+  },
+  crate: {
+    hp: 28, score: 100, w: 48, h: 48, density: 0.0012,
+    friction: 0.45, restitution: 0.22, frictionAir: 0.06,
+    col: '#b5793a', dark: '#7a4d20', particle: '#d9a05b', name: 'Ящик'
+  },
+  barrel: {
+    hp: 18, score: 200, w: 38, h: 50, density: 0.0014,
+    friction: 0.45, restitution: 0.28, frictionAir: 0.06,
+    col: '#e05030', dark: '#8f2a14', particle: '#ffa245',
+    explosive: true, name: 'Бочка'
+  },
+  tree: {
+    hp: 50, score: 150, r: 30, density: 0.0016,
+    friction: 0.5, restitution: 0.2, frictionAir: 0.07,
+    col: '#2f9e57', dark: '#175c31', particle: '#5fd98a', name: 'Дерево'
+  },
+  building: {
+    hp: 75, score: 500, w: 100, h: 100, density: 0.0007,
+    friction: 0.5, restitution: 0.14, frictionAir: 0.08,
+    col: '#6b7688', dark: '#39404d', particle: '#a8b4c6', name: 'Здание'
+  }
+};
+
+/* ---------------- Уровни ---------------- */
+const LEVELS = [
+  {
+    name: 'Разминка',
+    par: 2,
+    ball: { x: 110, y: 320 },
+    hole: { x: 880, y: 320 },
+    goal: { text: 'Уничтожь 6 объектов', type: 'destroyed', target: 6 },
+    walls: [
+      { x: 645, y: 118, w: 190, h: 30 },
+      { x: 645, y: 522, w: 190, h: 30 }
+    ],
+    objects: [
+      { t: 'crate',  x: 360, y: 190 },
+      { t: 'crate',  x: 360, y: 320 },
+      { t: 'crate',  x: 360, y: 450 },
+      { t: 'barrel', x: 525, y: 320 },
+      { t: 'glass',  x: 640, y: 320 },
+      { t: 'crate',  x: 750, y: 230 },
+      { t: 'crate',  x: 750, y: 410 },
+      { t: 'tree',   x: 845, y: 165 }
+    ]
+  },
+  {
+    name: 'Снос',
+    par: 3,
+    ball: { x: 100, y: 545 },
+    hole: { x: 905, y: 95 },
+    goal: { text: 'Снеси 2 здания', type: 'building', target: 2 },
+    walls: [
+      { x: 690, y: 80,  w: 30, h: 130 },
+      { x: 690, y: 560, w: 30, h: 130 }
+    ],
+    objects: [
+      { t: 'building', x: 375, y: 195 },
+      { t: 'building', x: 375, y: 460 },
+      { t: 'crate',    x: 520, y: 325 },
+      { t: 'barrel',   x: 600, y: 150 },
+      { t: 'barrel',   x: 600, y: 500 },
+      { t: 'tree',     x: 760, y: 325 },
+      { t: 'glass',    x: 830, y: 325 },
+      { t: 'crate',    x: 890, y: 235 },
+      { t: 'crate',    x: 890, y: 415 }
+    ]
+  },
+  {
+    name: 'Хаос',
+    par: 3,
+    ball: { x: 90, y: 320 },
+    hole: { x: 925, y: 320 },
+    goal: { text: 'Цепная реакция: 3 объекта за 1 удар', type: 'oneshot', target: 3 },
+    walls: [
+      { x: 520, y: 95,  w: 26, h: 175 },
+      { x: 520, y: 545, w: 26, h: 175 }
+    ],
+    objects: [
+      { t: 'barrel',   x: 300, y: 220 },
+      { t: 'barrel',   x: 300, y: 320 },
+      { t: 'barrel',   x: 300, y: 420 },
+      { t: 'crate',    x: 415, y: 255 },
+      { t: 'crate',    x: 415, y: 385 },
+      { t: 'building', x: 625, y: 320 },
+      { t: 'barrel',   x: 745, y: 175 },
+      { t: 'barrel',   x: 745, y: 465 },
+      { t: 'glass',    x: 830, y: 320 },
+      { t: 'tree',     x: 890, y: 175 },
+      { t: 'tree',     x: 890, y: 465 }
+    ]
+  }
+];
+
+/* ---------------- Canvas ---------------- */
+const canvas = document.getElementById('cv');
+const ctx = canvas.getContext('2d');
+const DPR = Math.min(2, window.devicePixelRatio || 1);
+canvas.width  = W * DPR;
+canvas.height = H * DPR;
+ctx.scale(DPR, DPR);
+
+/* ---------------- Состояние игры ---------------- */
+let engine, world, ball, hole;
+let objects = [];
+let particles = [];
+let floaters = [];
+let rings = [];
+let toRemove = [];
+let state = 'aiming';
+let strokes = 0, score = 0, destroyedTotal = 0;
+let shotDestroyed = 0, maxShotDestroyed = 0;
+let levelIndex = 0, currentLevel = null;
+let shake = 0;
+let stillFrames = 0;
+let prevBallPos = { x: 0, y: 0 };
+let dragging = false;
+let mouse = { x: 0, y: 0 };
+let doneTimer = 0;
+let totalScore = 0;
+let ballGone = false;
+let gameStarted = false;   // <-- показываем инструкцию до старта
+
+/* ---------------- Утилиты ---------------- */
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const rnd = (a, b) => a + Math.random() * (b - a);
+const speedOf = (body) => Vector.magnitude(body.velocity) * SUBSTEPS;
+
+function rr(c, x, y, w, h, r) {
+  r = Math.min(r, w / 2, h / 2);
+  c.beginPath();
+  c.moveTo(x + r, y);
+  c.arcTo(x + w, y,     x + w, y + h, r);
+  c.arcTo(x + w, y + h, x,     y + h, r);
+  c.arcTo(x,     y + h, x,     y,     r);
+  c.arcTo(x,     y,     x + w, y,     r);
+  c.closePath();
+}
+
+function distSegPoint(a, b, p) {
+  const abx = b.x - a.x, aby = b.y - a.y;
+  const apx = p.x - a.x, apy = p.y - a.y;
+  const len2 = abx * abx + aby * aby;
+  let t = len2 > 0 ? (apx * abx + apy * aby) / len2 : 0;
+  t = clamp(t, 0, 1);
+  return Math.hypot(p.x - (a.x + abx * t), p.y - (a.y + aby * t));
+}
+
+/* ============================================================
+   ИНСТРУКЦИЯ
+   ============================================================ */
+function showIntro() {
+  const html = `
+    <h1>💥 Wreck-Ball Golf</h1>
+    <div class="sub">Гольф, где мяч — разрушительное ядро. Не просто загони шар в лунку — снеси всё на своём пути!</div>
+
+    <div class="instr">
+      <div class="step">
+        <div class="num">1</div>
+        <div class="txt">
+          <div class="ttl">Прицелься и ударь</div>
+          <div class="dsc">Зажми <b>левой кнопкой мыши</b> рядом с мячом, потяни <b>в противоположную сторону</b> (как рогатку) и отпусти. Чем сильнее натяжение — тем мощнее удар.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="num">2</div>
+        <div class="txt">
+          <div class="ttl">Круши всё</div>
+          <div class="dsc">Мяч — тяжёлое ядро. Он ломает стены, деревья, бочки и здания. <b>Каждый разрушенный объект даёт очки.</b> Бочки взрываются и задевают соседей — устраивай цепные реакции!</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="num">3</div>
+        <div class="txt">
+          <div class="ttl">Выполни цель уровня</div>
+          <div class="dsc">У каждого уровня своя задача, например: <b>«Уничтожь 6 объектов»</b> или <b>«Снеси 2 здания»</b>. Следи за подсказкой под полем.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="num">4</div>
+        <div class="txt">
+          <div class="ttl">Загони мяч в лунку</div>
+          <div class="dsc">Финальная цель — <b>синяя лунка</b>. Чем меньше ударов потратишь (пар), тем больше бонусных очков. Меньше ударов — больше славы!</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <div class="lt">Что можно ломать</div>
+      <div class="lg-grid">
+        <div class="item"><div class="dot" style="background:#7fd8ff"></div><span>Стекло</span><i>50</i></div>
+        <div class="item"><div class="dot" style="background:#b5793a"></div><span>Ящик</span><i>100</i></div>
+        <div class="item"><div class="dot" style="background:#e05030"></div><span>Бочка 💣</span><i>200</i></div>
+        <div class="item"><div class="dot" style="background:#2f9e57"></div><span>Дерево</span><i>150</i></div>
+        <div class="item"><div class="dot" style="background:#6b7688"></div><span>Здание</span><i>500</i></div>
+        <div class="item"><div class="dot" style="background:#35c8ff"></div><span>Лунка</span><i>финиш</i></div>
+      </div>
+    </div>
+
+    <div style="font-size:12px;color:#6c82a6;margin-bottom:14px">
+      Кнопка <b style="color:#5ec8ff">«?»</b> вверху — вызвать эту справку в любой момент.
+      Клавиша <b style="color:#ffce4d">R</b> — перезапустить уровень.
+    </div>
+
+    <button onclick="startGame()">▶ Начать игру</button>
+  `;
+  document.getElementById('modal-card').innerHTML = html;
+  document.getElementById('modal').classList.remove('hidden');
+}
+
+window.startGame = () => {
+  gameStarted = true;
+  hideModal();
+  loadLevel(0);
+  totalScore = 0;
+};
+
+window.showHelp = () => {
+  // Показать справку без кнопки "Начать" (игра уже идёт)
+  const saved = state;
+  const html = `
+    <h1>💥 Как играть</h1>
+    <div class="sub">Краткая справка</div>
+
+    <div class="instr">
+      <div class="step">
+        <div class="num">1</div>
+        <div class="txt">
+          <div class="ttl">Прицелься и ударь</div>
+          <div class="dsc">Зажми мышь рядом с мячом, потяни <b>от мяча</b> и отпусти. Длиннее натяжение — сильнее удар.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="num">2</div>
+        <div class="txt">
+          <div class="ttl">Разрушай объекты</div>
+          <div class="dsc">Каждый сломанный объект — очки. Бочки <b>взрываются</b> и бьют по соседям.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="num">3</div>
+        <div class="txt">
+          <div class="ttl">Выполни цель и загони мяч</div>
+          <div class="dsc">Смотри задачу под полем. Финал — попасть в <b>синюю лунку</b>.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <div class="lt">Очки за объекты</div>
+      <div class="lg-grid">
+        <div class="item"><div class="dot" style="background:#7fd8ff"></div><span>Стекло</span><i>50</i></div>
+        <div class="item"><div class="dot" style="background:#b5793a"></div><span>Ящик</span><i>100</i></div>
+        <div class="item"><div class="dot" style="background:#e05030"></div><span>Бочка 💣</span><i>200</i></div>
+        <div class="item"><div class="dot" style="background:#2f9e57"></div><span>Дерево</span><i>150</i></div>
+        <div class="item"><div class="dot" style="background:#6b7688"></div><span>Здание</span><i>500</i></div>
+      </div>
+    </div>
+
+    <button onclick="closeHelp()">Продолжить</button>
+  `;
+  document.getElementById('modal-card').innerHTML = html;
+  document.getElementById('modal').classList.remove('hidden');
+};
+
+window.closeHelp = () => { hideModal(); };
+
+/* ============================================================
+   ЗАГРУЗКА УРОВНЯ
+   ============================================================ */
+function borderWalls() {
+  const t = 60;
+  return [
+    { x: W / 2, y: -t / 2,      w: W + t * 2, h: t },
+    { x: W / 2, y: H + t / 2,   w: W + t * 2, h: t },
+    { x: -t / 2, y: H / 2,      w: t, h: H + t * 2 },
+    { x: W + t / 2, y: H / 2,   w: t, h: H + t * 2 }
+  ];
+}
+
+function loadLevel(idx) {
+  levelIndex = idx;
+  const L = LEVELS[idx];
+  currentLevel = L;
+
+  engine = Engine.create({ gravity: { x: 0, y: 0 } });
+  world = engine.world;
+  engine.positionIterations = 10;
+  engine.velocityIterations = 8;
+
+  objects = []; particles = []; floaters = []; rings = []; toRemove = [];
+  strokes = 0; score = 0; destroyedTotal = 0;
+  shotDestroyed = 0; maxShotDestroyed = 0;
+  state = 'aiming'; shake = 0; stillFrames = 0; doneTimer = 0;
+  ballGone = false;
+  dragging = false;
+
+  const wallOpts = {
+    isStatic: true, label: 'wall', friction: 0.08,
+    restitution: 0.55, frictionAir: 0
+  };
+  for (const w of borderWalls())
+    Composite.add(world, Bodies.rectangle(w.x, w.y, w.w, w.h, wallOpts));
+  for (const w of (L.walls || []))
+    Composite.add(world, Bodies.rectangle(w.x, w.y, w.w, w.h, wallOpts));
+
+  ball = Bodies.circle(L.ball.x, L.ball.y, BALL_R, {
+    label: 'ball',
+    density: 0.012,
+    friction: 0.05,
+    frictionStatic: 0.1,
+    frictionAir: 0.017,
+    restitution: 0.72
+  });
+  Composite.add(world, ball);
+  prevBallPos = { x: ball.position.x, y: ball.position.y };
+
+  for (const o of L.objects) createObject(o);
+
+  hole = { x: L.hole.x, y: L.hole.y, r: HOLE_R };
+
+  Events.on(engine, 'collisionStart', onCollision);
+
+  hideModal();
+  updateHUD();
+  updateGoalBar();
+}
+
+/* ============================================================
+   СОЗДАНИЕ ОБЪЕКТОВ
+   ============================================================ */
+function createObject(def) {
+  const T = TYPES[def.t];
+  const opts = {
+    density: T.density,
+    friction: T.friction,
+    restitution: T.restitution,
+    frictionAir: T.frictionAir,
+    label: 'obj'
+  };
+  let body;
+  if (T.r) body = Bodies.circle(def.x, def.y, T.r, opts);
+  else     body = Bodies.rectangle(def.x, def.y, T.w, T.h, opts);
+
+  const obj = {
+    type: def.t,
+    def: T,
+    body,
+    hp: T.hp,
+    maxHp: T.hp,
+    destroyed: false,
+    flash: 0,
+    wob: Math.random() * 6.28
+  };
+  body.gameObj = obj;
+  if (def.a) Body.setAngle(body, def.a);
+
+  objects.push(obj);
+  Composite.add(world, body);
+  return obj;
+}
+
+/* ============================================================
+   СТОЛКНОВЕНИЯ И УРОН
+   ============================================================ */
+function onCollision(ev) {
+  for (const p of ev.pairs) {
+    impact(p.bodyA, p.bodyB);
+    impact(p.bodyB, p.bodyA);
+  }
+}
+
+function impact(a, b) {
+  if (!b.gameObj || b.gameObj.destroyed) return;
+
+  const va = Vector.mult(a.velocity, SUBSTEPS);
+  const vb = Vector.mult(b.velocity, SUBSTEPS);
+  const rel = Vector.magnitude(Vector.sub(va, vb));
+  if (rel < 3.2) return;
+
+  const ma = a.isStatic ? 1e6 : a.mass;
+  const mb = b.isStatic ? 1e6 : b.mass;
+  const ratio = clamp(ma / Math.max(0.5, mb), 0.45, 2.0);
+  const dmg = rel * 2.2 * ratio;
+
+  damage(b, dmg);
+  if (b.gameObj && !b.gameObj.destroyed) b.gameObj.flash = Math.min(1, 0.35 + dmg / 60);
+}
+
+function damage(obj, amt) {
+  if (obj.destroyed) return;
+  obj.hp -= amt;
+  obj.flash = Math.min(1, obj.flash + 0.3);
+  if (obj.hp <= 0) destroyObject(obj);
+}
+
+function destroyObject(obj) {
+  if (obj.destroyed) return;
+  obj.destroyed = true;
+  if (obj.body.gameObj) obj.body.gameObj = null;
+  toRemove.push(obj.body);
+
+  score += obj.def.score;
+  destroyedTotal++;
+  shotDestroyed++;
+  if (shotDestroyed > maxShotDestroyed) maxShotDestroyed = shotDestroyed;
+
+  const p = obj.body.position;
+  addFloater(p.x, p.y, '+' + obj.def.score, '#ffce4d');
+  spawnParticles(p.x, p.y, 16, obj.def.particle, 7);
+  rings.push({ x: p.x, y: p.y, r: 6, max: 60, life: 1, color: '255,220,120' });
+  shake = Math.min(16, shake + 4.5);
+
+  if (obj.def.explosive) explode(p.x, p.y, 145, 105);
+
+  updateHUD();
+}
+
+function explode(x, y, radius, power) {
+  spawnParticles(x, y, 42, '#ffb03a', 11);
+  spawnParticles(x, y, 16, '#fff0c0', 7);
+  rings.push({ x, y, r: 10, max: radius, life: 1, color: '255,150,50' });
+  rings.push({ x, y, r: 4,  max: radius * 0.6, life: 1, color: '255,255,220' });
+  shake = Math.min(26, shake + 14);
+
+  for (const o of objects) {
+    if (o.destroyed) continue;
+    const op = o.body.position;
+    const d = Math.hypot(op.x - x, op.y - y);
+    if (d >= radius) continue;
+    const f = 1 - d / radius;
+    const nx = (op.x - x) / (d || 1);
+    const ny = (op.y - y) / (d || 1);
+
+    const v = Vector.mult(o.body.velocity, SUBSTEPS);
+    const add = 15 * f;
+    Body.setVelocity(o.body, Vector.mult({ x: v.x + nx * add, y: v.y + ny * add }, 1 / SUBSTEPS));
+
+    damage(o, power * f * f);
+  }
+
+  if (!ballGone && ball) {
+    const bp = ball.position;
+    const d = Math.hypot(bp.x - x, bp.y - y);
+    const R = radius * 1.5;
+    if (d < R) {
+      const f = 1 - d / R;
+      const nx = (bp.x - x) / (d || 1);
+      const ny = (bp.y - y) / (d || 1);
+      const v = Vector.mult(ball.velocity, SUBSTEPS);
+      const add = 17 * f;
+      Body.setVelocity(ball, Vector.mult({ x: v.x + nx * add, y: v.y + ny * add }, 1 / SUBSTEPS));
+      if (state === 'aiming') state = 'moving';
+    }
+  }
+}
+
+/* ============================================================
+   ЧАСТИЦЫ / ТЕКСТ / КОЛЬЦА
+   ============================================================ */
+function spawnParticles(x, y, n, color, spread) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const s = Math.random() * spread + 1;
+    particles.push({
+      x, y,
+      vx: Math.cos(a) * s,
+      vy: Math.sin(a) * s,
+      life: 1,
+      decay: rnd(0.014, 0.03),
+      size: rnd(1.8, 5.2),
+      color,
+      spin: rnd(-0.3, 0.3),
+      rot: Math.random() * 6.28
+    });
+  }
+  if (particles.length > 900) particles.splice(0, particles.length - 900);
+}
+
+function addFloater(x, y, text, color) {
+  floaters.push({ x, y, text, color, life: 1, vy: -0.85 });
+}
+
+/* ============================================================
+   ВВОД
+   ============================================================ */
+function toWorld(e) {
+  const r = canvas.getBoundingClientRect();
+  return {
+    x: (e.clientX - r.left) / r.width * W,
+    y: (e.clientY - r.top) / r.height * H
+  };
+}
+
+canvas.addEventListener('pointerdown', e => {
+  if (!gameStarted) return;
+  if (state !== 'aiming' || ballGone) return;
+  canvas.setPointerCapture(e.pointerId);
+  dragging = true;
+  mouse = toWorld(e);
+});
+
+canvas.addEventListener('pointermove', e => { mouse = toWorld(e); });
+
+canvas.addEventListener('pointerup', e => {
+  if (!dragging) return;
+  dragging = false;
+  if (state !== 'aiming' || ballGone) return;
+
+  const pull = Vector.sub(ball.position, mouse);
+  const len = Vector.magnitude(pull);
+  if (len < 14) return;
+
+  const power = clamp(len / MAX_PULL, 0, 1);
+  if (power < 0.06) return;
+
+  const dir = Vector.normalise(pull);
+  const sp = power * MAX_SPEED;
+
+  Body.setVelocity(ball, Vector.mult(dir, sp / SUBSTEPS));
+  Body.setAngularVelocity(ball, 0);
+
+  state = 'moving';
+  stillFrames = 0;
+  shotDestroyed = 0;
+  strokes++;
+  prevBallPos = { x: ball.position.x, y: ball.position.y };
+
+  spawnParticles(
+    ball.position.x - dir.x * 18,
+    ball.position.y - dir.y * 18,
+    8, '#8fa0b8', 4
+  );
+  updateHUD();
+});
+
+canvas.addEventListener('pointercancel', () => { dragging = false; });
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+document.getElementById('help-btn').addEventListener('click', () => {
+  if (gameStarted) window.showHelp();
+  else showIntro();
+});
+
+window.addEventListener('keydown', e => {
+  if (!gameStarted) return;
+  if (e.key === 'r' || e.key === 'R' || e.key === 'к' || e.key === 'К') {
+    loadLevel(levelIndex);
+  }
+  if (e.key === 'Escape') hideModal();
+});
+
+/* ============================================================
+   ОБНОВЛЕНИЕ
+   ============================================================ */
+function updateGame() {
+  if (!gameStarted || !engine) return;
+
+  for (let i = 0; i < SUBSTEPS; i++) Engine.update(engine, DT);
+
+  if (toRemove.length) {
+    for (const b of toRemove) Composite.remove(world, b);
+    toRemove.length = 0;
+  }
+
+  for (const o of objects) {
+    if (o.flash > 0) o.flash = Math.max(0, o.flash - 0.06);
+    o.wob += 0.05;
+  }
+
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx; p.y += p.vy;
+    p.vx *= 0.93; p.vy *= 0.93;
+    p.rot += p.spin;
+    p.life -= p.decay;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+
+  for (let i = floaters.length - 1; i >= 0; i--) {
+    const f = floaters[i];
+    f.y += f.vy;
+    f.vy *= 0.96;
+    f.life -= 0.016;
+    if (f.life <= 0) floaters.splice(i, 1);
+  }
+
+  for (let i = rings.length - 1; i >= 0; i--) {
+    const r = rings[i];
+    r.r += (r.max - r.r) * 0.18;
+    r.life -= 0.045;
+    if (r.life <= 0) rings.splice(i, 1);
+  }
+
+  if (!ballGone && ball) {
+    if (state === 'moving') {
+      const sp = speedOf(ball);
+      if (sp < 0.75) stillFrames++; else stillFrames = 0;
+      if (stillFrames > 22) {
+        state = 'aiming';
+        stillFrames = 0;
+        Body.setVelocity(ball, { x: 0, y: 0 });
+      }
+      checkHole();
+    }
+    prevBallPos = { x: ball.position.x, y: ball.position.y };
+  }
+
+  if (state === 'done') {
+    doneTimer++;
+    if (doneTimer === 38) finishLevel();
+  }
+
+  shake *= 0.88;
+  if (shake < 0.15) shake = 0;
+}
+
+function checkHole() {
+  if (ballGone) return;
+  const d = distSegPoint(prevBallPos, ball.position, hole);
+  if (d < hole.r * 0.78) sinkBall();
+}
+
+function sinkBall() {
+  if (state === 'done') return;
+  state = 'done';
+  doneTimer = 0;
+  ballGone = true;
+
+  spawnParticles(hole.x, hole.y, 34, '#7fe0ff', 8);
+  spawnParticles(hole.x, hole.y, 14, '#ffffff', 5);
+  rings.push({ x: hole.x, y: hole.y, r: 8, max: 90, life: 1, color: '120,220,255' });
+  shake = Math.min(20, shake + 8);
+
+  if (ball) Composite.remove(world, ball);
+  updateHUD();
+}
+
+/* ============================================================
+   ЗАВЕРШЕНИЕ УРОВНЯ
+   ============================================================ */
+function goalCompleted() {
+  const g = currentLevel.goal;
+  if (!g) return true;
+  if (g.type === 'destroyed') return destroyedTotal >= g.target;
+  if (g.type === 'building') {
+    let n = 0;
+    for (const o of objects) if (o.type === 'building' && o.destroyed) n++;
+    return n >= g.target;
+  }
+  if (g.type === 'oneshot') return maxShotDestroyed >= g.target;
+  return true;
+}
+
+function finishLevel() {
+  const g = currentLevel.goal;
+  const done = goalCompleted();
+
+  const parBonus  = Math.max(0, currentLevel.par - strokes + 1) * 250;
+  const goalBonus = done ? 750 : 0;
+  const total     = score + parBonus + goalBonus;
+  totalScore += total;
+
+  const isLast = levelIndex >= LEVELS.length - 1;
+
+  let html = `
+    <h1>${done ? 'Лунка взята!' : 'В лунке, но цель не выполнена'}</h1>
+    <div class="sub">Уровень ${levelIndex + 1} · ${currentLevel.name}</div>
+    <div class="rows">
+      <div class="row"><span class="k">Разрушено объектов</span><span class="v">${destroyedTotal}</span></div>
+      <div class="row"><span class="k">Очки за разрушения</span><span class="v">${score}</span></div>
+      <div class="row ${parBonus > 0 ? 'bonus' : ''}">
+        <span class="k">Удары: ${strokes} (пар ${currentLevel.par})</span>
+        <span class="v">+${parBonus}</span>
+      </div>
+      <div class="row ${done ? 'bonus' : 'fail'}">
+        <span class="k">Цель: ${g.text}</span>
+        <span class="v">${done ? '+' + goalBonus : '✕'}</span>
+      </div>
+      <div class="row total"><span class="k">ИТОГО</span><span class="v">${total}</span></div>
+      <div class="row"><span class="k">Всего за игру</span><span class="v">${totalScore}</span></div>
+    </div>
+    <div>
+      ${isLast
+        ? `<button onclick="restartGame()">Играть снова</button>`
+        : `<button onclick="nextLevel()">Следующий уровень</button>`}
+      <button class="ghost" onclick="retryLevel()">Заново</button>
+    </div>
+  `;
+  document.getElementById('modal-card').innerHTML = html;
+  document.getElementById('modal').classList.remove('hidden');
+}
+
+function hideModal() { document.getElementById('modal').classList.add('hidden'); }
+
+window.nextLevel = () => { hideModal(); loadLevel(Math.min(levelIndex + 1, LEVELS.length - 1)); };
+window.retryLevel = () => { hideModal(); loadLevel(levelIndex); };
+window.restartGame = () => { hideModal(); totalScore = 0; loadLevel(0); };
+
+/* ============================================================
+   HUD
+   ============================================================ */
+function updateHUD() {
+  document.getElementById('hud-level').textContent = (levelIndex + 1) + '/' + LEVELS.length;
+  document.getElementById('hud-score').textContent = score;
+  document.getElementById('hud-strokes').textContent = strokes;
+  document.getElementById('hud-destroyed').textContent = destroyedTotal;
+}
+
+function updateGoalBar() {
+  const g = currentLevel.goal;
+  const done = goalCompleted();
+  document.getElementById('goal-text').innerHTML =
+    `Цель: <b>${g.text}</b> ${done ? '✅' : ''}`;
+}
+
+/* ============================================================
+   РЕНДЕР
+   ============================================================ */
+function render() {
+  if (!gameStarted) return;
+  ctx.save();
+
+  if (shake > 0.15) ctx.translate(rnd(-shake, shake), rnd(-shake, shake));
+
+  drawBackground();
+  drawHole();
+  drawWalls();
+  drawObjects();
+  drawRings();
+  drawParticles();
+  if (!ballGone && ball) drawBall();
+  drawAim();
+  drawFloaters();
+
+  ctx.restore();
+
+  const vg = ctx.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, H * 0.95);
+  vg.addColorStop(0, 'rgba(0,0,0,0)');
+  vg.addColorStop(1, 'rgba(0,0,0,0.5)');
+  ctx.fillStyle = vg;
+  ctx.fillRect(0, 0, W, H);
+}
+
+function drawBackground() {
+  const bg = ctx.createLinearGradient(0, 0, W, H);
+  bg.addColorStop(0, '#0d131f');
+  bg.addColorStop(0.5, '#0a1018');
+  bg.addColorStop(1, '#0e1622');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.strokeStyle = 'rgba(60,110,170,0.10)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let x = 0; x <= W; x += 40) { ctx.moveTo(x, 0); ctx.lineTo(x, H); }
+  for (let y = 0; y <= H; y += 40) { ctx.moveTo(0, y); ctx.lineTo(W, y); }
+  ctx.stroke();
+
+  const gl = ctx.createRadialGradient(W / 2, H / 2, 40, W / 2, H / 2, 620);
+  gl.addColorStop(0, 'rgba(40,90,150,0.10)');
+  gl.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = gl;
+  ctx.fillRect(0, 0, W, H);
+}
+
+function drawHole() {
+  const { x, y, r } = hole;
+
+  const glow = ctx.createRadialGradient(x, y, 2, x, y, r * 3);
+  glow.addColorStop(0, 'rgba(60,200,255,0.35)');
+  glow.addColorStop(1, 'rgba(60,200,255,0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath(); ctx.arc(x, y, r * 3, 0, 6.2832); ctx.fill();
+
+  const g = ctx.createRadialGradient(x - 6, y - 6, 2, x, y, r);
+  g.addColorStop(0, '#000000');
+  g.addColorStop(0.7, '#04070d');
+  g.addColorStop(1, '#0b1420');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832); ctx.fill();
+
+  ctx.strokeStyle = '#3fd0ff';
+  ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832); ctx.stroke();
+
+  ctx.strokeStyle = 'rgba(140,230,255,0.35)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(x, y, r + 6, 0, 6.2832); ctx.stroke();
+
+  const pulse = Math.sin(performance.now() / 400) * 2;
+  ctx.strokeStyle = '#c8d4e6';
+  ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - 62); ctx.stroke();
+
+  ctx.fillStyle = '#ff4d6d';
+  ctx.beginPath();
+  ctx.moveTo(x, y - 62);
+  ctx.quadraticCurveTo(x + 20, y - 60 + pulse, x + 36, y - 52);
+  ctx.quadraticCurveTo(x + 20, y - 44 - pulse, x, y - 42);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = '#ffe0e6';
+  ctx.font = 'bold 11px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('H', x + 15, y - 49);
+}
+
+function drawWalls() {
+  ctx.fillStyle = '#1a2333';
+  ctx.strokeStyle = '#2c3d58';
+  ctx.lineWidth = 2;
+
+  const rects = [
+    { x: -20, y: -20, w: W + 40, h: 20 },
+    { x: -20, y: H,   w: W + 40, h: 20 },
+    { x: -20, y: 0,   w: 20, h: H },
+    { x: W,   y: 0,   w: 20, h: H }
+  ];
+  for (const r of rects) {
+    ctx.fillRect(r.x, r.y, r.w, r.h);
+    ctx.strokeRect(r.x, r.y, r.w, r.h);
+  }
+
+  if (!currentLevel) return;
+  for (const w of (currentLevel.walls || [])) {
+    const x = w.x - w.w / 2, y = w.y - w.h / 2;
+    ctx.fillStyle = '#232f44';
+    rr(ctx, x, y, w.w, w.h, 6); ctx.fill();
+    ctx.strokeStyle = '#3d5175'; ctx.lineWidth = 2; ctx.stroke();
+
+    ctx.save();
+    ctx.beginPath(); rr(ctx, x, y, w.w, w.h, 6); ctx.clip();
+    ctx.strokeStyle = 'rgba(90,130,190,0.18)';
+    ctx.lineWidth = 3;
+    for (let i = -w.h; i < w.w + w.h; i += 14) {
+      ctx.beginPath();
+      ctx.moveTo(x + i, y + w.h);
+      ctx.lineTo(x + i + w.h, y);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+}
+
+function drawObjects() {
+  for (const o of objects) {
+    if (o.destroyed) continue;
+    const p = o.body.position;
+    const a = o.body.angle;
+
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(a);
+
+    switch (o.type) {
+      case 'crate':    drawCrate(o);    break;
+      case 'barrel':   drawBarrel(o);   break;
+      case 'glass':    drawGlass(o);    break;
+      case 'tree':     drawTree(o);     break;
+      case 'building': drawBuilding(o); break;
+    }
+    ctx.restore();
+
+    if (o.hp < o.maxHp && o.hp > 0) {
+      const w = o.type === 'tree' ? 50 : (o.def.w || 60);
+      const hpRatio = clamp(o.hp / o.maxHp, 0, 1);
+      const bx = p.x - w / 2, by = p.y - (o.type === 'tree' ? 44 : o.def.h / 2 + 16);
+      ctx.fillStyle = 'rgba(0,0,0,0.65)';
+      rr(ctx, bx - 1, by - 1, w + 2, 7, 4); ctx.fill();
+      ctx.fillStyle = hpRatio > 0.6 ? '#5ef2a0' : hpRatio > 0.3 ? '#ffce4d' : '#ff5a6e';
+      rr(ctx, bx, by, w * hpRatio, 5, 3); ctx.fill();
+    }
+  }
+}
+
+function flashOverlay(o, x, y, w, h, r) {
+  if (o.flash > 0.01) {
+    ctx.fillStyle = `rgba(255,255,255,${o.flash * 0.75})`;
+    rr(ctx, x, y, w, h, r);
+    ctx.fill();
+  }
+}
+
+function drawCrate(o) {
+  const w = o.def.w, h = o.def.h;
+  const x = -w / 2, y = -h / 2;
+
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  rr(ctx, x + 3, y + 4, w, h, 6); ctx.fill();
+
+  const g = ctx.createLinearGradient(x, y, x, y + h);
+  g.addColorStop(0, '#c98b45');
+  g.addColorStop(1, '#8a5a29');
+  ctx.fillStyle = g;
+  rr(ctx, x, y, w, h, 6); ctx.fill();
+
+  ctx.strokeStyle = '#5e3a17';
+  ctx.lineWidth = 3;
+  rr(ctx, x, y, w, h, 6); ctx.stroke();
+
+  ctx.strokeStyle = 'rgba(94,58,23,0.85)';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(x + 4, y + 4);  ctx.lineTo(x + w - 4, y + h - 4);
+  ctx.moveTo(x + w - 4, y + 4); ctx.lineTo(x + 4, y + h - 4);
+  ctx.stroke();
+
+  ctx.strokeStyle = 'rgba(255,220,160,0.25)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(x + 5, y + 5); ctx.lineTo(x + w - 5, y + 5);
+  ctx.stroke();
+
+  flashOverlay(o, x, y, w, h, 6);
+}
+
+function drawBarrel(o) {
+  const w = o.def.w, h = o.def.h;
+  const x = -w / 2, y = -h / 2;
+
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  rr(ctx, x + 3, y + 4, w, h, 9); ctx.fill();
+
+  const g = ctx.createLinearGradient(x, y, x + w, y);
+  g.addColorStop(0, '#a8321a');
+  g.addColorStop(0.35, '#f0673a');
+  g.addColorStop(0.6, '#e05030');
+  g.addColorStop(1, '#8f2a14');
+  ctx.fillStyle = g;
+  rr(ctx, x, y, w, h, 9); ctx.fill();
+
+  ctx.strokeStyle = '#5c1a0c';
+  ctx.lineWidth = 3;
+  rr(ctx, x, y, w, h, 9); ctx.stroke();
+
+  ctx.fillStyle = 'rgba(30,12,6,0.55)';
+  ctx.fillRect(x, y + h * 0.22, w, 5);
+  ctx.fillRect(x, y + h * 0.68, w, 5);
+
+  ctx.fillStyle = '#ffd23d';
+  ctx.beginPath();
+  ctx.moveTo(0, -7);
+  ctx.lineTo(8, 8);
+  ctx.lineTo(-8, 8);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#3a2200';
+  ctx.font = 'bold 11px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('!', 0, 6);
+
+  flashOverlay(o, x, y, w, h, 9);
+}
+
+function drawGlass(o) {
+  const w = o.def.w, h = o.def.h;
+  const x = -w / 2, y = -h / 2;
+
+  const g = ctx.createLinearGradient(x, y, x + w, y + h);
+  g.addColorStop(0, 'rgba(160,235,255,0.30)');
+  g.addColorStop(0.5, 'rgba(110,200,240,0.50)');
+  g.addColorStop(1, 'rgba(160,235,255,0.30)');
+  ctx.fillStyle = g;
+  rr(ctx, x, y, w, h, 4); ctx.fill();
+
+  ctx.strokeStyle = 'rgba(190,245,255,0.9)';
+  ctx.lineWidth = 2;
+  rr(ctx, x, y, w, h, 4); ctx.stroke();
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(x + 4, y + h * 0.25);
+  ctx.lineTo(x + w - 4, y + h * 0.1);
+  ctx.stroke();
+
+  flashOverlay(o, x, y, w, h, 4);
+}
+
+function drawTree(o) {
+  const r = o.def.r;
+
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.beginPath(); ctx.arc(3, 5, r, 0, 6.2832); ctx.fill();
+
+  const g = ctx.createRadialGradient(-r * 0.3, -r * 0.3, r * 0.15, 0, 0, r);
+  g.addColorStop(0, '#4fd47e');
+  g.addColorStop(0.6, '#2f9e57');
+  g.addColorStop(1, '#175c31');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(0, 0, r, 0, 6.2832); ctx.fill();
+
+  ctx.strokeStyle = '#0f3d21';
+  ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(0, 0, r, 0, 6.2832); ctx.stroke();
+
+  ctx.fillStyle = 'rgba(120,240,160,0.35)';
+  for (let i = 0; i < 6; i++) {
+    const a = o.wob + i * 1.05;
+    const rad = r * 0.55;
+    ctx.beginPath();
+    ctx.arc(Math.cos(a) * rad, Math.sin(a) * rad, r * 0.22, 0, 6.2832);
+    ctx.fill();
+  }
+
+  if (o.flash > 0.01) {
+    ctx.fillStyle = `rgba(255,255,255,${o.flash * 0.7})`;
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, 6.2832); ctx.fill();
+  }
+}
+
+function drawBuilding(o) {
+  const w = o.def.w, h = o.def.h;
+  const x = -w / 2, y = -h / 2;
+
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  rr(ctx, x + 4, y + 5, w, h, 5); ctx.fill();
+
+  const g = ctx.createLinearGradient(x, y, x + w, y + h);
+  g.addColorStop(0, '#7d8899');
+  g.addColorStop(0.5, '#5f6a7d');
+  g.addColorStop(1, '#3f4859');
+  ctx.fillStyle = g;
+  rr(ctx, x, y, w, h, 5); ctx.fill();
+
+  ctx.strokeStyle = '#2a3241';
+  ctx.lineWidth = 3;
+  rr(ctx, x, y, w, h, 5); ctx.stroke();
+
+  ctx.fillStyle = 'rgba(30,36,48,0.9)';
+  rr(ctx, x, y, w, 12, 4); ctx.fill();
+
+  const cols = 4, rows = 4;
+  const padX = 12, padY = 20;
+  const cw = (w - padX * 2) / cols;
+  const ch = (h - padY - 10) / rows;
+  for (let i = 0; i < cols; i++) {
+    for (let j = 0; j < rows; j++) {
+      const wx = x + padX + i * cw + 3;
+      const wy = y + padY + j * ch + 3;
+      const lit = ((i * 7 + j * 13 + Math.floor(o.wob * 0.02)) % 5) !== 0;
+      ctx.fillStyle = lit ? 'rgba(255,215,120,0.85)' : 'rgba(30,40,55,0.9)';
+      ctx.fillRect(wx, wy, cw - 7, ch - 7);
+    }
+  }
+
+  const dmg = 1 - o.hp / o.maxHp;
+  if (dmg > 0.3) {
+    ctx.strokeStyle = `rgba(15,20,28,${dmg * 0.9})`;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(x + w * 0.25, y);
+    ctx.lineTo(x + w * 0.4, y + h * 0.35);
+    ctx.lineTo(x + w * 0.2, y + h * 0.6);
+    ctx.lineTo(x + w * 0.45, y + h);
+    ctx.stroke();
+  }
+  if (dmg > 0.65) {
+    ctx.beginPath();
+    ctx.moveTo(x + w * 0.85, y + h * 0.2);
+    ctx.lineTo(x + w * 0.6, y + h * 0.5);
+    ctx.lineTo(x + w * 0.8, y + h * 0.85);
+    ctx.stroke();
+  }
+
+  flashOverlay(o, x, y, w, h, 5);
+}
+
+function drawBall() {
+  const p = ball.position;
+
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.beginPath(); ctx.arc(p.x + 3, p.y + 5, BALL_R, 0, 6.2832); ctx.fill();
+
+  const glow = ctx.createRadialGradient(p.x, p.y, 2, p.x, p.y, BALL_R * 2.6);
+  glow.addColorStop(0, 'rgba(120,170,220,0.28)');
+  glow.addColorStop(1, 'rgba(120,170,220,0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath(); ctx.arc(p.x, p.y, BALL_R * 2.6, 0, 6.2832); ctx.fill();
+
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  ctx.rotate(ball.angle);
+
+  const g = ctx.createRadialGradient(-5, -6, 1.5, 0, 0, BALL_R + 1);
+  g.addColorStop(0, '#a9bbd2');
+  g.addColorStop(0.42, '#5a6779');
+  g.addColorStop(0.8, '#2b333f');
+  g.addColorStop(1, '#11161e');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(0, 0, BALL_R, 0, 6.2832); ctx.fill();
+
+  ctx.strokeStyle = '#080b10';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.arc(0, 0, BALL_R, 0, 6.2832); ctx.stroke();
+
+  ctx.fillStyle = 'rgba(20,26,34,0.9)';
+  for (let i = 0; i < 4; i++) {
+    const a = i * Math.PI / 2 + 0.4;
+    ctx.beginPath();
+    ctx.arc(Math.cos(a) * 7.5, Math.sin(a) * 7.5, 1.9, 0, 6.2832);
+    ctx.fill();
+  }
+
+  ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  ctx.beginPath(); ctx.arc(-5, -6, 3.2, 0, 6.2832); ctx.fill();
+
+  ctx.restore();
+}
+
+function drawAim() {
+  if (state !== 'aiming' || ballGone || !ball) return;
+
+  const p = ball.position;
+  const pull = Vector.sub(p, mouse);
+  const len = Vector.magnitude(pull);
+
+  ctx.save();
+  ctx.setLineDash([5, 6]);
+  ctx.strokeStyle = 'rgba(120,170,220,0.28)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(p.x, p.y);
+  ctx.lineTo(mouse.x, mouse.y);
+  ctx.stroke();
+  ctx.restore();
+
+  if (!dragging || len < 8) return;
+
+  const power = clamp(len / MAX_PULL, 0, 1);
+  const dir = Vector.normalise(pull);
+
+  const hue = 190 - power * 190;
+  const col = `hsl(${hue}, 95%, 60%)`;
+
+  const trajLen = 40 + power * 300;
+  ctx.save();
+  ctx.strokeStyle = col;
+  ctx.lineWidth = 4;
+  ctx.globalAlpha = 0.85;
+  ctx.setLineDash([12, 9]);
+  ctx.lineDashOffset = -performance.now() / 22;
+  ctx.beginPath();
+  ctx.moveTo(p.x + dir.x * 20, p.y + dir.y * 20);
+  ctx.lineTo(p.x + dir.x * trajLen, p.y + dir.y * trajLen);
+  ctx.stroke();
+  ctx.restore();
+
+  const ax = p.x + dir.x * (trajLen + 6);
+  const ay = p.y + dir.y * (trajLen + 6);
+  ctx.save();
+  ctx.translate(ax, ay);
+  ctx.rotate(Math.atan2(dir.y, dir.x));
+  ctx.fillStyle = col;
+  ctx.beginPath();
+  ctx.moveTo(14, 0); ctx.lineTo(-6, 9); ctx.lineTo(-6, -9);
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, BALL_R + 12, 0, 6.2832);
+  ctx.stroke();
+
+  ctx.strokeStyle = col;
+  ctx.lineWidth = 5;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, BALL_R + 12, -Math.PI / 2, -Math.PI / 2 + 6.2832 * power);
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 15px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.shadowColor = 'rgba(0,0,0,0.9)';
+  ctx.shadowBlur = 6;
+  ctx.fillText(Math.round(power * 100) + '%', p.x, p.y - BALL_R - 24);
+  ctx.shadowBlur = 0;
+}
+
+function drawParticles() {
+  for (const p of particles) {
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, p.life);
+    ctx.translate(p.x, p.y);
+    ctx.rotate(p.rot);
+    ctx.fillStyle = p.color;
+    const s = p.size * (0.4 + p.life * 0.6);
+    ctx.fillRect(-s / 2, -s / 2, s, s);
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawRings() {
+  for (const r of rings) {
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, r.life) * 0.8;
+    ctx.strokeStyle = `rgba(${r.color},1)`;
+    ctx.lineWidth = 4 * r.life + 1;
+    ctx.beginPath();
+    ctx.arc(r.x, r.y, r.r, 0, 6.2832);
+    ctx.stroke();
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawFloaters() {
+  ctx.textAlign = 'center';
+  for (const f of floaters) {
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, f.life);
+    ctx.font = 'bold 20px sans-serif';
+    ctx.fillStyle = f.color;
+    ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+    ctx.lineWidth = 4;
+    ctx.strokeText(f.text, f.x, f.y);
+    ctx.fillText(f.text, f.x, f.y);
+    ctx.restore();
+  }
+}
+
+/* ============================================================
+   ГЛАВНЫЙ ЦИКЛ
+   ============================================================ */
+let frameCount = 0;
+function loop() {
+  if (gameStarted) {
+    updateGame();
+    render();
+    if (frameCount++ % 20 === 0) updateGoalBar();
+  }
+  requestAnimationFrame(loop);
+}
+
+/* ============================================================
+   СТАРТ
+   ============================================================ */
+// Загружаем "пустой" первый уровень, чтобы подготовить сцену,
+// но показываем инструкцию поверх. Игра начнётся по кнопке.
+loadLevel(0);
+gameStarted = false;
+showIntro();
+requestAnimationFrame(loop);
+</script>
+
+<script>
+  // Запоминаем, какую игру нужно оценить после возврата
+  document.getElementById('backToMain').addEventListener('click', function () {
+    try { localStorage.setItem('genrelab_pending', '9'); } catch (e) {}
+  });
+</script>
+
+</body>
+</html>

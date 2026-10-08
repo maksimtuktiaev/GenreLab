@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GenreLab — 9 прототипов 2D-игр</title>
+    <meta
+      name="description"
+      content="Командный проект: 9 игровых прототипов, оцените жанры и помогите выбрать направление разработки."
+    />
+    <link rel="stylesheet" href="assets/style.css" />
+<!-- Иконка для большинства современных браузеров (32x32) -->
+    <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon/favicon-32x32.png">
+
+    <!-- Иконка мелкого размера (16x16) -->
+    <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon/favicon-16x16.png">
+
+    <!-- Основная/резервная фавиконка -->
+    <link rel="shortcut icon" href="assets/favicon/favicon.ico">
+
+    <!-- Иконка для мобильных устройств (Apple / iOS) -->
+    <link rel="apple-touch-icon" sizes="180x180" href="assets/favicon/apple-touch-icon.png">
+  </head>
+  <body data-page="index">
+    <header id="site-header"></header>
+
+    <main class="page">
+      <section class="hero">
+        <div class="container">
+          <div class="hero-badge">
+            Командный проект · ОПД · Аналитика · Construct 3 (Free) · Львы и Тигры
+          </div>
+          <h1 class="hero-title">
+            Девять прототипов.<br /><span class="grad"
+              >Один жанр для нашей игры.</span
+            >
+          </h1>
+          <p class="hero-lead">
+            Я сделал 9   коротких игровых пробников в разных жанрах. Сыграйте в
+            каждый, поставьте ❤️ или 👎 — и на странице
+            <a href="stats.html">Статистики</a> мы увидим, какой жанр нашей
+            команде ближе всего. Это и определит направление разработки.
+          </p>
+          <div class="hero-actions">
+            <a class="btn btn-primary btn-lg" href="#games">▶ Начать знакомство</a>
+            <a class="btn btn-ghost btn-lg" href="stats.html"
+              >📊 Смотреть статистику</a
+            >
+          </div>
+
+          <div class="progress-panel">
+            <div class="progress-head">
+              <span>Прогресс оценки</span>
+              <b id="progressLabel">0 / 9</b>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div class="progress-hint" id="progressHint">
+              Начните с любой карточки — порядок не важен.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="container section" id="games">
+        <div class="section-head">
+          <h2>Игровые пробники</h2>
+          <p>
+            Каждая карточка — отдельный прототип в своем жанре. Играйте прямо в
+            браузере.
+          </p>
+        </div>
+        <div class="grid" id="gamesGrid"></div>
+      </section>
+
+      <section class="container section">
+        <div class="howto">
+          <h2>Как это работает</h2>
+          <div class="howto-grid">
+            <div class="howto-step">
+              <span>1</span>
+              <h4>Играете</h4>
+              <p>
+                Открываете карточку и запускаете прототип — прямо в браузере,
+                без установки.
+              </p>
+            </div>
+            <div class="howto-step">
+              <span>2</span>
+              <h4>Возвращаетесь</h4>
+              <p>
+                Внутри игры есть кнопка «Вернуться на главную». Сайт сам
+                предложит оценить жанр.
+              </p>
+            </div>
+            <div class="howto-step">
+              <span>3</span>
+              <h4>Оцениваете</h4>
+              <p>
+                ❤️ нравится / 👎 не зашло + необязательный комментарий для
+                команды.
+              </p>
+            </div>
+            <div class="howto-step">
+              <span>4</span>
+              <h4>Смотрите итоги</h4>
+              <p>
+                На странице статистики — рейтинг жанров и все комментарии в
+                одном месте.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <section class="container section" id="concepts">
+      <div class="section-head">
+        <h2>Сводная таблица концептов</h2>
+        <p>
+          Кратко о каждом прототипе: жанр и главная «изюминка», которая отличает
+          его от классических игр этого жанра.
+        </p>
+      </div>
+
+      <div class="concept-table-wrap">
+        <table class="concept-table">
+          <thead>
+            <tr>
+              <th style="width: 24%">Концепт</th>
+              <th style="width: 26%">Жанр</th>
+              <th>Главная изюминка (Twist / USP)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>💡 Luminous Pulse</td>
+              <td>Ритм-пазл / Стелс</td>
+              <td>Играем только по ритму света в полной темноте</td>
+            </tr>
+            <tr>
+              <td>💥 Wreck-Ball Golf</td>
+              <td>Физическая аркада / Пазл</td>
+              <td>Разрушительный гольф, где нужно крушить все вокруг</td>
+            </tr>
+            <tr>
+              <td>🦠 Infection Vector</td>
+              <td>Реверс-Tower Defense</td>
+              <td>Играем за вирус, прорывающийся сквозь антивирусы</td>
+            </tr>
+            <tr>
+              <td>🛡️ Flipper Knight</td>
+              <td>Пинбол-экшен</td>
+              <td>Управление персонажем через пинбол-флипперы</td>
+            </tr>
+            <tr>
+              <td>🔧 Dungeon Maintenance</td>
+              <td>Менеджмент / Аркада</td>
+              <td>Чиним ловушки в подземелье на скорость</td>
+            </tr>
+            <tr>
+              <td>🛰️ Shifted Core</td>
+              <td>Платформер-пазл</td>
+              <td>Переворачиваем гравитацию на 180°</td>
+            </tr>
+            <tr>
+              <td>🕶️ Shadow Protocol</td>
+              <td>Стелс-головоломка</td>
+              <td>Прячемся от конусов зрения охраны</td>
+            </tr>
+            <tr>
+              <td>🧲 Orbit Recovery</td>
+              <td>Физическая аркада</td>
+              <td>Буксировка тяжелых грузов на магните</td>
+            </tr>
+            <tr>
+              <td>💥 Core Override</td>
+              <td>Boss Rush Экшен</td>
+              <td>Качественная многофазовая битва с одним Боссом</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <footer id="site-footer"></footer>
+
+    <script src="assets/api.js"></script>
+    <script src="assets/app.js"></script>
+  </body>
+</html>
