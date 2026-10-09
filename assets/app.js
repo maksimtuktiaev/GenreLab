@@ -850,25 +850,31 @@ async function renderStats() {
         .join("")}
     </div>`;
 
-  if (isAdmin()) {
-    html += `
-      <div class="panel admin-panel">
-        <div class="admin-badge">🔐 Режим администратора</div>
-        <h3>⚙️ Данные</h3>
-        <p class="sub">Экспорт для отчета и сброс всех оценок.</p>
-        <div class="stats-actions">
-          <button class="btn btn-primary" id="exportCsv">⬇ Экспорт в CSV</button>
-          <button class="btn btn-ghost" id="resetStats">🗑 Сбросить все оценки</button>
-          <button class="btn btn-ghost" id="logoutAdmin">🚪 Выйти из режима админа</button>
-        </div>
-      </div>`;
-  }
+if (isAdmin()) {
+  html += `
+    <div class="panel admin-panel">
+      <div class="admin-badge">🔐 Режим администратора</div>
+      <h3>⚙️ Данные</h3>
+      <p class="sub">Полный отчёт — один HTML-файл со всеми секциями (сводка, рейтинги, вывод, комментарии, сырые данные). CSV — только сырые данные для Excel.</p>
+      <div class="stats-actions">
+        <button class="btn btn-primary" id="exportFull">📑 Полный отчёт (HTML)</button>
+        <button class="btn btn-ghost" id="exportCsv">⬇ Только CSV</button>
+        <button class="btn btn-ghost" id="resetStats">🗑 Сбросить все оценки</button>
+        <button class="btn btn-ghost" id="logoutAdmin">🚪 Выйти из режима админа</button>
+      </div>
+    </div>`;
+}
 
   root.innerHTML = html;
 
   /* ---- обработчики ---- */
   const exp = document.getElementById("exportCsv");
   if (exp) exp.addEventListener("click", () => exportCSV(entries));
+   const full = document.getElementById('exportFull');
+if (full) full.addEventListener('click', () => {
+  if (!window.__statsData) return;
+  exportFullReport(window.__statsData);
+});
 
   const rst = document.getElementById("resetStats");
   if (rst)
@@ -894,7 +900,13 @@ async function renderStats() {
   const lo = document.getElementById("logoutAdmin");
   if (lo) lo.addEventListener("click", logoutAdmin);
 
-  /* ---- автообновление раз в 30 секунд ---- */
+    // Сохраняем данные для экспорта
+  window.__statsData = {
+    entries, allRatings, sortedGames, tagRows,
+    serverOk, likes, dislikes, uniqUsers, likeRate
+  };
+   
+   /* ---- автообновление раз в 30 секунд ---- */
   if (!window.__statsInterval) {
     window.__statsInterval = setInterval(() => {
       if (!document.hidden) renderStats();
@@ -999,6 +1011,224 @@ function initScrollReveal() {
   );
 
   els.forEach((el) => io.observe(el));
+}
+
+/* ---------- Полный HTML-отчёт ---------- */
+function exportFullReport({ entries, allRatings, sortedGames, tagRows, serverOk, likes, dislikes, uniqUsers, likeRate }) {
+  const now = new Date().toLocaleString('ru-RU');
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+
+  const summaryRows = [
+    ['Участников', uniqUsers],
+    ['Всего оценок', allRatings.length],
+    ['❤️ Понравилось', likes],
+    ['👎 Не зашло', dislikes],
+    ['Индекс симпатии', likeRate + '%'],
+    ['Источник данных', serverOk ? 'Supabase (общая база)' : 'localStorage (только этот браузер)'],
+    ['Дата экспорта', now]
+  ];
+
+  const gamesRows = sortedGames.map((e, i) => {
+    const pct = Math.round(e.rate * 100);
+    const place = (i === 0 && e.total) ? '🥇'
+                : (i === 1 && e.total) ? '🥈'
+                : (i === 2 && e.total) ? '🥉' : (i + 1);
+    return `<tr>
+      <td style="text-align:center">${place}</td>
+      <td>${esc(e.game.emoji)} <b>${esc(e.game.title)}</b> <small>${esc(e.game.ru)}</small></td>
+      <td>${esc(e.game.genre)}</td>
+      <td style="text-align:center">${e.like}</td>
+      <td style="text-align:center">${e.dislike}</td>
+      <td style="text-align:center">${e.total}</td>
+      <td style="text-align:center"><b>${pct}%</b></td>
+    </tr>`;
+  }).join('');
+
+  const tagRowsHTML = tagRows.map((t, i) => {
+    const pct = Math.round(t.rate * 100);
+    const place = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1);
+    return `<tr>
+      <td style="text-align:center">${place}</td>
+      <td><b>${esc(t.tag)}</b></td>
+      <td style="text-align:center">${t.like}</td>
+      <td style="text-align:center">${t.dislike}</td>
+      <td style="text-align:center">${t.tot}</td>
+      <td style="text-align:center"><b>${pct}%</b></td>
+    </tr>`;
+  }).join('');
+
+  let conclusion = 'Недостаточно данных для вывода.';
+  if (tagRows.length) {
+    const best = tagRows[0];
+    const worst = tagRows[tagRows.length - 1];
+    conclusion = `Лидирующее направление — <b>${esc(best.tag)}</b> (${Math.round(best.rate * 100)}% положительных оценок, ${best.like} ❤️ из ${best.tot}).`;
+    if (worst && worst.tag !== best.tag) {
+      conclusion += `<br>Наименее востребованное — <b>${esc(worst.tag)}</b> (${Math.round(worst.rate * 100)}%). Возможно, стоит отложить его в бэклог.`;
+    }
+  }
+
+  const withComments = entries.filter(e => e.comment && e.comment.length);
+  const commentsHTML = withComments.length
+    ? withComments.map(e => `
+        <tr>
+          <td>${esc(e.game.emoji)} ${esc(e.game.title)}</td>
+          <td>${e.vote === 'like' ? '❤️' : '👎'}</td>
+          <td>${esc(e.user_name || 'Аноним')}</td>
+          <td>${esc(e.comment)}</td>
+          <td style="white-space:nowrap">${e.ts ? new Date(e.ts).toLocaleString('ru-RU') : ''}</td>
+        </tr>`).join('')
+    : '<tr><td colspan="5" style="text-align:center;color:#888;padding:20px">Комментариев пока нет</td></tr>';
+
+  const rawRows = entries.map(e => `
+    <tr>
+      <td style="text-align:center">${e.game.id}</td>
+      <td>${esc(e.game.title)}</td>
+      <td>${esc(e.game.genre)}</td>
+      <td>${e.vote === 'like' ? '❤️ Нравится' : e.vote === 'dislike' ? '👎 Не зашло' : '—'}</td>
+      <td>${esc(e.user_name || 'Аноним')}</td>
+      <td>${esc(e.comment || '')}</td>
+      <td style="white-space:nowrap">${e.ts ? new Date(e.ts).toLocaleString('ru-RU') : ''}</td>
+    </tr>`).join('');
+
+  const html = `<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>GenreLab — Полный отчёт по статистике</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Roboto, Arial, sans-serif; background:#f5f6fa; color:#1a1a2e; margin:0; padding:30px; line-height:1.5; }
+  .container { max-width: 1100px; margin: 0 auto; }
+  h1 { font-size:28px; margin:0 0 8px; color:#2d1b69; }
+  h2 { font-size:20px; margin:40px 0 14px; padding-bottom:8px; border-bottom:2px solid #6c5ce7; color:#2d1b69; }
+  h2:first-of-type { margin-top:24px; }
+  .meta { color:#666; font-size:13px; margin-bottom:24px; }
+  table { width:100%; border-collapse:collapse; background:#fff; border-radius:10px; overflow:hidden; box-shadow:0 2px 10px rgba(0,0,0,.06); margin-bottom:20px; }
+  th { background:#6c5ce7; color:#fff; padding:12px 14px; text-align:left; font-size:12px; text-transform:uppercase; letter-spacing:.5px; font-weight:700; }
+  td { padding:11px 14px; border-bottom:1px solid #eee; font-size:14px; vertical-align:top; }
+  tr:last-child td { border-bottom:none; }
+  tbody tr:nth-child(even) td { background:#fafafe; }
+  small { color:#888; display:block; font-size:12px; margin-top:2px; }
+  .conclusion { background:#fff; border-left:5px solid #00c2a8; padding:18px 22px; border-radius:10px; font-size:15px; line-height:1.7; box-shadow:0 2px 10px rgba(0,0,0,.06); }
+  .summary { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:14px; margin-bottom:24px; }
+  .sum-card { background:#fff; padding:18px; border-radius:10px; text-align:center; box-shadow:0 2px 10px rgba(0,0,0,.06); }
+  .sum-card .v { font-size:30px; font-weight:800; color:#6c5ce7; line-height:1; }
+  .sum-card .l { font-size:11px; color:#666; text-transform:uppercase; letter-spacing:.5px; margin-top:8px; font-weight:700; }
+  .sum-card.like .v { color:#ff4d7d; }
+  .sum-card.dislike .v { color:#5a6480; }
+  footer { text-align:center; color:#888; font-size:12px; margin-top:50px; padding-top:20px; border-top:1px solid #ddd; }
+  @media print {
+    body { background:#fff; padding:0; }
+    .container { max-width:none; }
+    table, .conclusion, .sum-card { box-shadow:none; border:1px solid #ddd; }
+    h2 { page-break-after:avoid; }
+    tr { page-break-inside:avoid; }
+    .sum-card { border:none; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <h1>🎮 GenreLab — Полный отчёт по статистике</h1>
+  <div class="meta">Сформирован: <b>${esc(now)}</b> · Источник данных: <b>${serverOk ? 'Supabase (общая база команды)' : 'localStorage (только этот браузер)'}</b></div>
+
+  <h2>📊 Сводка</h2>
+  <div class="summary">
+    <div class="sum-card"><div class="v">${uniqUsers}</div><div class="l">Участников</div></div>
+    <div class="sum-card like"><div class="v">${likes}</div><div class="l">❤️ Нравится</div></div>
+    <div class="sum-card dislike"><div class="v">${dislikes}</div><div class="l">👎 Не зашло</div></div>
+    <div class="sum-card"><div class="v">${likeRate}%</div><div class="l">Индекс симпатии</div></div>
+  </div>
+  <table>
+    <thead><tr><th style="width:45%">Показатель</th><th>Значение</th></tr></thead>
+    <tbody>
+      ${summaryRows.map(([k, v]) => `<tr><td>${esc(k)}</td><td><b>${esc(v)}</b></td></tr>`).join('')}
+    </tbody>
+  </table>
+
+  <h2>🏆 Рейтинг прототипов</h2>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:50px;text-align:center">#</th>
+        <th>Игра</th>
+        <th>Жанр</th>
+        <th style="width:60px;text-align:center">❤️</th>
+        <th style="width:60px;text-align:center">👎</th>
+        <th style="width:70px;text-align:center">Всего</th>
+        <th style="width:70px;text-align:center">%</th>
+      </tr>
+    </thead>
+    <tbody>${gamesRows}</tbody>
+  </table>
+
+  <h2>🎯 Рейтинг жанров</h2>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:50px;text-align:center">#</th>
+        <th>Жанр / тег</th>
+        <th style="width:60px;text-align:center">❤️</th>
+        <th style="width:60px;text-align:center">👎</th>
+        <th style="width:70px;text-align:center">Всего</th>
+        <th style="width:70px;text-align:center">%</th>
+      </tr>
+    </thead>
+    <tbody>${tagRowsHTML || '<tr><td colspan="6" style="text-align:center;color:#888;padding:20px">Нет данных</td></tr>'}</tbody>
+  </table>
+
+  <h2>🧭 Вывод для команды</h2>
+  <div class="conclusion">${conclusion}</div>
+
+  <h2>💬 Комментарии команды <span style="font-size:14px;color:#888;font-weight:400">(${withComments.length})</span></h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Игра</th>
+        <th style="width:60px;text-align:center">Оценка</th>
+        <th style="width:140px">Имя</th>
+        <th>Комментарий</th>
+        <th style="width:150px">Дата</th>
+      </tr>
+    </thead>
+    <tbody>${commentsHTML}</tbody>
+  </table>
+
+  <h2>📋 Сырые данные (все оценки)</h2>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:50px;text-align:center">ID</th>
+        <th>Игра</th>
+        <th>Жанр</th>
+        <th style="width:130px">Оценка</th>
+        <th style="width:130px">Имя</th>
+        <th>Комментарий</th>
+        <th style="width:150px">Дата</th>
+      </tr>
+    </thead>
+    <tbody>${rawRows || '<tr><td colspan="7" style="text-align:center;color:#888;padding:20px">Нет данных</td></tr>'}</tbody>
+  </table>
+
+  <footer>GenreLab · учебный командный проект · экспорт от ${esc(now)}</footer>
+</div>
+</body>
+</html>`;
+
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const d = new Date();
+  const stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  a.href = url;
+  a.download = `genrelab_report_${stamp}.html`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 /* ---------- Запуск ---------- */
